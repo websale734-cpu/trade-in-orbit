@@ -1,0 +1,266 @@
+@import "tailwindcss";
+
+/*
+ * Orbtrade design system
+ * ----------------------
+ * All colours are CSS variables so the whole UI re-themes by flipping
+ * `data-theme` on <html>. Dark is the default; light is opt-in via the toggle.
+ * Tailwind utilities (bg-bg, text-muted, border-line, ...) map onto these tokens
+ * through the @theme block below, so components never hard-code colours.
+ */
+
+/* `dark:` variant follows our data-theme attribute, not the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #07070c;
+  --bg-elevated: #0d0d15;
+  --surface: rgb(255 255 255 / 0.035);
+  --surface-strong: rgb(255 255 255 / 0.06);
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.14);
+  --fg: #ededf5;
+  --muted: #9a9ab3;
+  --subtle: #6b6b85;
+
+  --accent-violet: #8b5cf6;
+  --accent-cyan: #22d3ee;
+  --accent: #a78bfa;
+  --accent-fg: #ffffff;
+
+  --up: #2ee6a6;
+  --down: #ff5c8a;
+  --warn: #fbbf24;
+
+  --glow-violet: rgb(139 92 246 / 0.35);
+  --glow-cyan: rgb(34 211 238 / 0.22);
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 20px 50px -20px rgb(0 0 0 / 0.6);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f6fb;
+  --bg-elevated: #ffffff;
+  --surface: rgb(255 255 255 / 0.75);
+  --surface-strong: #ffffff;
+  --line: rgb(15 15 40 / 0.08);
+  --line-strong: rgb(15 15 40 / 0.14);
+  --fg: #0b0b16;
+  --muted: #55556d;
+  --subtle: #8a8aa0;
+
+  --accent-violet: #7c3aed;
+  --accent-cyan: #0891b2;
+  --accent: #6d28d9;
+  --accent-fg: #ffffff;
+
+  --up: #059669;
+  --down: #e11d48;
+  --warn: #b45309;
+
+  --glow-violet: rgb(124 58 237 / 0.18);
+  --glow-cyan: rgb(8 145 178 / 0.12);
+  --shadow-card: 0 1px 2px rgb(15 15 40 / 0.04), 0 16px 40px -20px rgb(15 15 40 / 0.18);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-violet: var(--accent-violet);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-warn: var(--warn);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius-card: 1.25rem;
+
+  --animate-marquee: marquee 60s linear infinite;
+  --animate-float: float 8s ease-in-out infinite;
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes flash-up {
+  from {
+    background-color: color-mix(in oklab, var(--up) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@keyframes flash-down {
+  from {
+    background-color: color-mix(in oklab, var(--down) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: var(--path-length, 1000);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Remove grey tap flash on mobile so buttons feel native. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent-violet) 40%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@layer components {
+  /* Frosted-glass card used across the app. */
+  .glass {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+
+  /* Brand gradient: electric violet -> cyan. */
+  .bg-brand {
+    background-image: linear-gradient(120deg, var(--accent-violet) 0%, #6366f1 45%, var(--accent-cyan) 100%);
+  }
+  .text-brand {
+    background-image: linear-gradient(110deg, var(--accent-violet) 10%, #818cf8 45%, var(--accent-cyan) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* 1px gradient border for highlighted cards. */
+  .ring-brand {
+    position: relative;
+  }
+  .ring-brand::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, var(--accent-violet), transparent 40%, transparent 60%, var(--accent-cyan));
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Subtle dotted grid used behind hero sections. */
+  .bg-grid {
+    background-image: radial-gradient(var(--line-strong) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .flash-up {
+    animation: flash-up 1s ease-out;
+  }
+  .flash-down {
+    animation: flash-down 1s ease-out;
+  }
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
