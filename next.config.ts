@@ -15,6 +15,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // KYC uploads: up to three 5 MB files per submission, plus form overhead.
+  experimental: {
+    serverActions: { bodySizeLimit: "16mb" },
+    proxyClientMaxBodySize: "16mb",
+  },
   images: {
     // Coin logos served by CoinGecko.
     remotePatterns: [

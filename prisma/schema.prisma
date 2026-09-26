@@ -1,0 +1,254 @@
+// Orbtrade database schema (PostgreSQL on Neon).
+//
+// Conventions:
+// - Secrets (session tokens, verification codes, recovery codes) are stored only
+//   as HMAC hashes. Sensitive data (TOTP secrets, KYC files) is AES-256-GCM
+//   encrypted at the application layer before it reaches the database.
+// - Table and column names are snake_case in Postgres, camelCase in TypeScript.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  SUPPORT
+  COMPLIANCE
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum KycStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id    String @id @default(cuid())
+  /// Always stored lower-cased and trimmed.
+  email String @unique
+  name  String
+
+  passwordHash String @map("password_hash")
+
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  /// E.164 format, e.g. +447700900123. Unique once verified.
+  phone           String?   @unique
+  phoneVerifiedAt DateTime? @map("phone_verified_at")
+
+  /// Encrypted TOTP secret; set once 2FA is confirmed.
+  totpSecretEnc        String?   @map("totp_secret_enc")
+  /// Encrypted secret awaiting confirmation during 2FA setup.
+  totpPendingSecretEnc String?   @map("totp_pending_secret_enc")
+  totpEnabledAt        DateTime? @map("totp_enabled_at")
+  /// Last accepted TOTP time step; codes at or before it are rejected (replay protection).
+  totpLastStep         Int?      @map("totp_last_step")
+  /// Set when the user has seen the optional 2FA step (enabled or skipped).
+  twoFactorPromptedAt  DateTime? @map("two_factor_prompted_at")
+
+  role      Role          @default(USER)
+  status    AccountStatus @default(ACTIVE)
+  kycStatus KycStatus     @default(NONE) @map("kyc_status")
+  /// 0 = unverified, 1 = identity verified. Limits by level arrive with funding (Phase 4).
+  kycLevel  Int           @default(0) @map("kyc_level")
+
+  termsAcceptedAt DateTime @map("terms_accepted_at")
+  termsVersion    String   @map("terms_version")
+  locale          String   @default("en")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sessions          Session[]
+  verificationCodes VerificationCode[]
+  authChallenges    AuthChallenge[]
+  recoveryCodes     RecoveryCode[]
+  securityEvents    SecurityEvent[]
+  kycSubmissions    KycSubmission[]  @relation("KycSubmitter")
+  kycReviews        KycSubmission[]  @relation("KycReviewer")
+
+  @@map("users")
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  /// HMAC-SHA256 of the random token held in the httpOnly cookie.
+  tokenHash  String    @unique @map("token_hash")
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip         String?
+  userAgent  String?   @map("user_agent")
+  device     String?
+  location   String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  /// Absolute expiry; idle timeout is enforced from last_seen_at.
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+enum CodePurpose {
+  EMAIL_VERIFY
+  PHONE_VERIFY
+  PASSWORD_RESET
+}
+
+/// One-time 6-digit codes sent by email or SMS.
+model VerificationCode {
+  id          String      @id @default(cuid())
+  userId      String      @map("user_id")
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose     CodePurpose
+  /// Email address or phone number the code was sent to.
+  target      String
+  /// HMAC of the code. Null when the SMS provider (Twilio Verify) holds the code.
+  codeHash    String?     @map("code_hash")
+  attempts    Int         @default(0)
+  maxAttempts Int         @default(5) @map("max_attempts")
+  sendCount   Int         @default(1) @map("send_count")
+  lastSentAt  DateTime    @default(now()) @map("last_sent_at")
+  expiresAt   DateTime    @map("expires_at")
+  consumedAt  DateTime?   @map("consumed_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@index([userId, purpose])
+  @@map("verification_codes")
+}
+
+/// Short-lived state between "password OK" and "2FA code OK" during login.
+model AuthChallenge {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique @map("token_hash")
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("auth_challenges")
+}
+
+/// Single-use 2FA recovery codes (stored hashed).
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("recovery_codes")
+}
+
+enum SecurityEventType {
+  REGISTERED
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGIN_2FA_FAILED
+  LOGOUT
+  LOGOUT_ALL
+  SESSION_REVOKED
+  EMAIL_VERIFIED
+  PHONE_VERIFIED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET
+  TWO_FACTOR_ENABLED
+  TWO_FACTOR_DISABLED
+  RECOVERY_CODE_USED
+  KYC_SUBMITTED
+}
+
+/// Append-only security log shown to the user (Security page) and to admins.
+model SecurityEvent {
+  id        String            @id @default(cuid())
+  userId    String?           @map("user_id")
+  user      User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      SecurityEventType
+  ip        String?
+  userAgent String?           @map("user_agent")
+  device    String?
+  location  String?
+  metadata  Json?
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("security_events")
+}
+
+enum KycDocumentType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVERS_LICENSE
+}
+
+enum KycFileKind {
+  ID_FRONT
+  ID_BACK
+  SELFIE
+}
+
+model KycSubmission {
+  id              String          @id @default(cuid())
+  userId          String          @map("user_id")
+  user            User            @relation("KycSubmitter", fields: [userId], references: [id], onDelete: Cascade)
+  documentType    KycDocumentType @map("document_type")
+  /// ISO 3166-1 alpha-2 country that issued the document.
+  documentCountry String          @map("document_country")
+  status          KycStatus       @default(PENDING)
+  rejectionReason String?         @map("rejection_reason")
+  reviewerId      String?         @map("reviewer_id")
+  reviewer        User?           @relation("KycReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  submittedAt     DateTime        @default(now()) @map("submitted_at")
+  reviewedAt      DateTime?       @map("reviewed_at")
+
+  files KycFile[]
+
+  @@index([status, submittedAt])
+  @@index([userId])
+  @@map("kyc_submissions")
+}
+
+/// Identity document images. Contents are encrypted before storage.
+model KycFile {
+  id           String        @id @default(cuid())
+  submissionId String        @map("submission_id")
+  submission   KycSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  kind         KycFileKind
+  mimeType     String        @map("mime_type")
+  sizeBytes    Int           @map("size_bytes")
+  /// SHA-256 of the original (unencrypted) bytes, for integrity checks.
+  sha256       String
+  /// AES-256-GCM ciphertext (iv + tag + data).
+  dataEnc      Bytes         @map("data_enc")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@index([submissionId])
+  @@map("kyc_files")
+}
+
+/// Fixed-window rate limit counters, shared across server instances.
+model RateLimit {
+  key       String   @id
+  count     Int
+  expiresAt DateTime @map("expires_at")
+
+  @@map("rate_limits")
+}

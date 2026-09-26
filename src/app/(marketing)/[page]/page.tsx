@@ -11,8 +11,6 @@ import { getDictionary } from "@/i18n/server";
  * slugs here as they're implemented.
  */
 const upcoming: Record<string, { title: string; phase: number }> = {
-  register: { title: "Create account", phase: 2 },
-  login: { title: "Log in", phase: 2 },
   about: { title: "About", phase: 7 },
   careers: { title: "Careers", phase: 7 },
   blog: { title: "Blog", phase: 7 },
