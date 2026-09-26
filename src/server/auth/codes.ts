@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "../db";
 import { hmac, randomCode, safeEqual } from "../crypto";
 import { formatRetry, limits, rateLimit } from "../rate-limit";
-import { passwordResetEmail, sendEmail, verificationCodeEmail } from "../notify/email";
+import { confirmActionEmail, passwordResetEmail, sendEmail, verificationCodeEmail } from "../notify/email";
 import { checkSmsVerification, startSmsVerification } from "../notify/sms";
 import type { CodePurpose, VerificationCode } from "@/generated/prisma/client";
 
@@ -74,7 +74,11 @@ export async function sendCode(userId: string, purpose: CodePurpose, target: str
     const message =
       purpose === "PASSWORD_RESET"
         ? passwordResetEmail(target, code, CODE_TTL_MINUTES)
-        : verificationCodeEmail(target, code, CODE_TTL_MINUTES);
+        : purpose === "WITHDRAWAL_CONFIRM"
+          ? confirmActionEmail(target, code, CODE_TTL_MINUTES, "confirm your withdrawal")
+          : purpose === "ADDRESS_CONFIRM"
+            ? confirmActionEmail(target, code, CODE_TTL_MINUTES, "add a new withdrawal address")
+            : verificationCodeEmail(target, code, CODE_TTL_MINUTES);
     await sendEmail(message);
     codeHash = hmac(`code:${purpose}`, code);
   }

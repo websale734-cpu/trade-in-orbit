@@ -85,6 +85,11 @@ model User {
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   journalEntries    JournalEntry[]
+  deposits          Deposit[]
+  depositAddresses  DepositAddress[]
+  orders            Order[]
+  withdrawals       Withdrawal[]
+  withdrawalAddrs   WithdrawalAddress[]
 
   @@map("users")
 }
@@ -113,6 +118,8 @@ enum CodePurpose {
   EMAIL_VERIFY
   PHONE_VERIFY
   PASSWORD_RESET
+  WITHDRAWAL_CONFIRM
+  ADDRESS_CONFIRM
 }
 
 /// One-time 6-digit codes sent by email or SMS.
@@ -181,6 +188,8 @@ enum SecurityEventType {
   TWO_FACTOR_DISABLED
   RECOVERY_CODE_USED
   KYC_SUBMITTED
+  WITHDRAWAL_ADDRESS_ADDED
+  WITHDRAWAL_REQUESTED
 }
 
 /// Append-only security log shown to the user (Security page) and to admins.
@@ -297,6 +306,8 @@ model Asset {
 enum AccountType {
   TRADING
   SAVINGS
+  /// Virtual funds for demo trading. Never counted in real totals, never withdrawable.
+  DEMO
 }
 
 /// A user-facing account ("Trading", "Savings", ...). Holds one ledger account per asset.
@@ -439,4 +450,164 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+
+// ===========================================================================
+// Funding, trading and withdrawals (Phase 4)
+// Every money movement here is also a ledger journal entry; these tables hold
+// the workflow state (status, provider references, destinations).
+// ===========================================================================
+
+enum PaymentMethod {
+  BANK
+  CARD
+  CRYPTO
+  MOBILE_MONEY
+}
+
+enum DepositStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Deposit {
+  id            String        @id @default(cuid())
+  userId        String        @map("user_id")
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  accountId     String        @map("account_id")
+  method        PaymentMethod
+  assetCode     String        @map("asset_code")
+  amount        Decimal       @db.Decimal(38, 18)
+  fee           Decimal       @db.Decimal(38, 18)
+  status        DepositStatus @default(PENDING)
+  /// Short reference the customer quotes on a bank transfer.
+  reference     String        @unique
+  /// Payment provider's ID (Stripe session, mobile money transaction, tx hash).
+  providerRef   String?       @unique @map("provider_ref")
+  /// Test-mode deposit created without a real provider (never in production).
+  sandbox       Boolean       @default(false)
+  failureReason String?       @map("failure_reason")
+  entryId       String?       @map("entry_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  completedAt   DateTime?     @map("completed_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("deposits")
+}
+
+model DepositAddress {
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetCode String   @map("asset_code")
+  network   String
+  address   String
+  /// Generated without a custody provider: for testing only, never receives real funds.
+  sandbox   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, assetCode])
+  @@map("deposit_addresses")
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  OPEN
+  FILLED
+  CANCELLED
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  userId      String      @map("user_id")
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  accountId   String      @map("account_id")
+  demo        Boolean     @default(false)
+  side        OrderSide
+  type        OrderType
+  baseAsset   String      @map("base_asset")
+  quoteAsset  String      @default("USD") @map("quote_asset")
+  /// Quantity of the base asset.
+  quantity    Decimal     @db.Decimal(38, 18)
+  limitPrice  Decimal?    @map("limit_price") @db.Decimal(38, 18)
+  status      OrderStatus @default(OPEN)
+  fillPrice   Decimal?    @map("fill_price") @db.Decimal(38, 18)
+  fee         Decimal?    @db.Decimal(38, 18)
+  /// Quote amount held in escrow for an open limit buy (released on fill/cancel).
+  escrow      Decimal?    @db.Decimal(38, 18)
+  entryId     String?     @map("entry_id")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  filledAt    DateTime?   @map("filled_at")
+  cancelledAt DateTime?   @map("cancelled_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, baseAsset])
+  @@map("orders")
+}
+
+enum WithdrawalStatus {
+  REQUESTED
+  UNDER_REVIEW
+  APPROVED
+  SENT
+  COMPLETED
+  REJECTED
+}
+
+model Withdrawal {
+  id              String           @id @default(cuid())
+  userId          String           @map("user_id")
+  user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  accountId       String           @map("account_id")
+  method          PaymentMethod
+  assetCode       String           @map("asset_code")
+  amount          Decimal          @db.Decimal(38, 18)
+  fee             Decimal          @db.Decimal(38, 18)
+  /// Destination details (bank account, wallet address, mobile number); sensitive parts encrypted.
+  destination     Json
+  addressId       String?          @map("address_id")
+  status          WithdrawalStatus @default(REQUESTED)
+  rejectionReason String?          @map("rejection_reason")
+  /// Process on/after this date (scheduled withdrawals).
+  scheduledFor    DateTime?        @map("scheduled_for")
+  txRef           String?          @map("tx_ref")
+  sandbox         Boolean          @default(false)
+  holdEntryId     String?          @map("hold_entry_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  reviewAt        DateTime?        @map("review_at")
+  approvedAt      DateTime?        @map("approved_at")
+  sentAt          DateTime?        @map("sent_at")
+  completedAt     DateTime?        @map("completed_at")
+  rejectedAt      DateTime?        @map("rejected_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+/// Saved crypto withdrawal addresses. New addresses must be confirmed by email code.
+model WithdrawalAddress {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetCode   String    @map("asset_code")
+  label       String
+  address     String
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([userId, assetCode, address])
+  @@map("withdrawal_addresses")
 }

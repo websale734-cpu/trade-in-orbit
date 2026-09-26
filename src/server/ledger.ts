@@ -29,7 +29,7 @@ export class LedgerError extends Error {
 export const MAX_ACCOUNTS_PER_USER = 5;
 
 /** Headroom for network latency to the database; ledger transactions are short. */
-const TX_OPTIONS = { timeout: 15_000, maxWait: 5_000 } as const;
+const TX_OPTIONS = { timeout: 20_000, maxWait: 10_000 } as const;
 
 // ---------------------------------------------------------------------------
 // Accounts
@@ -44,9 +44,10 @@ export async function ensureDefaultAccount(userId: string) {
     .catch(async () => db.account.findFirstOrThrow({ where: { userId, isDefault: true } })); // parallel first loads
 }
 
+/** Real (non-demo) accounts. The demo account lives only on the Trade page. */
 export function listAccounts(userId: string) {
   return db.account.findMany({
-    where: { userId, archivedAt: null },
+    where: { userId, archivedAt: null, type: { not: "DEMO" } },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     include: { ledgerAccounts: { include: { asset: true }, orderBy: { asset: { sortOrder: "asc" } } } },
   });
@@ -107,9 +108,11 @@ export async function postEntry(
     postings: PostingInput[];
   },
 ) {
+  // Zero legs (e.g. a fee that rounds to nothing) are dropped; the database rejects them.
+  const postings = entry.postings.filter((p) => !p.amount.isZero());
   const sums = new Map<string, Decimal>();
-  for (const p of entry.postings) sums.set(p.assetCode, (sums.get(p.assetCode) ?? new Decimal(0)).plus(p.amount));
-  if (entry.postings.length < 2 || [...sums.values()].some((s) => !s.isZero()))
+  for (const p of postings) sums.set(p.assetCode, (sums.get(p.assetCode) ?? new Decimal(0)).plus(p.amount));
+  if (postings.length < 2 || [...sums.values()].some((s) => !s.isZero()))
     throw new LedgerError("Journal entry is unbalanced.", "INVALID");
 
   return tx.journalEntry.create({
@@ -122,7 +125,7 @@ export async function postEntry(
       metadata: entry.metadata,
       postings: {
         // balanceAfter is computed by the database trigger; the placeholder is overwritten.
-        create: entry.postings.map((p) => ({ ...p, balanceAfter: new Decimal(0) })),
+        create: postings.map((p) => ({ ...p, balanceAfter: new Decimal(0) })),
       },
     },
     include: { postings: true },
@@ -155,8 +158,13 @@ export async function transferBetweenAccounts(input: {
   if (input.fromAccountId === input.toAccountId) throw new LedgerError("Choose two different accounts.", "INVALID");
 
   const [from, to, asset] = await Promise.all([
-    db.account.findFirst({ where: { id: input.fromAccountId, userId: input.userId, archivedAt: null } }),
-    db.account.findFirst({ where: { id: input.toAccountId, userId: input.userId, archivedAt: null } }),
+    // Demo accounts are excluded, so virtual funds can never move into a real account.
+    db.account.findFirst({
+      where: { id: input.fromAccountId, userId: input.userId, archivedAt: null, type: { not: "DEMO" } },
+    }),
+    db.account.findFirst({
+      where: { id: input.toAccountId, userId: input.userId, archivedAt: null, type: { not: "DEMO" } },
+    }),
     db.asset.findFirst({ where: { code: input.assetCode, enabled: true } }),
   ]);
   // Ownership is checked in the query, so another user's account ID simply isn't found.
@@ -189,7 +197,8 @@ export async function transferBetweenAccounts(input: {
 /** All non-zero balances for a user, per account and asset. */
 export async function userHoldings(userId: string) {
   const rows = await db.ledgerAccount.findMany({
-    where: { account: { userId, archivedAt: null }, balance: { not: 0 } },
+    // Demo balances are virtual and never count toward real totals.
+    where: { account: { userId, archivedAt: null, type: { not: "DEMO" } }, balance: { not: 0 } },
     include: { asset: true, account: { select: { id: true, name: true } } },
     orderBy: { asset: { sortOrder: "asc" } },
   });
@@ -206,7 +215,8 @@ export async function userHoldings(userId: string) {
 /** A user's recent journal entries with their postings (for history lists). */
 export function recentEntries(userId: string, take = 10) {
   return db.journalEntry.findMany({
-    where: { userId },
+    // Real-account activity only (demo trades are shown on the Trade page).
+    where: { userId, postings: { some: { ledgerAccount: { account: { type: { not: "DEMO" } } } } } },
     orderBy: { createdAt: "desc" },
     take,
     include: { postings: { include: { ledgerAccount: { include: { account: { select: { name: true } } } } } } },

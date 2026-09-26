@@ -13,8 +13,8 @@ Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **Po
 | 1 | Project setup, design system, landing page, dark/light mode | ✅ Done |
 | 2 | Registration, email + SMS codes, login, 2FA, KYC upload | ✅ Done |
 | 3 | Dashboard, accounts, live prices, watchlist (+ ledger core, notifications) | ✅ Done |
-| 4 | Deposits, trading, order book, withdrawals, ledger | ⏳ Next |
-| 5 | Admin panel | |
+| 4 | Deposits, trading, order book, withdrawals, ledger | ✅ Done |
+| 5 | Admin panel | ⏳ Next |
 | 6 | Rewards, referrals, staking, alerts, recurring buys, gift cards | |
 | 7 | Support, content pages, reports, API keys, multi-language | |
 | 8 | Security review, testing, mobile polish, deployment guide | |
@@ -157,6 +157,31 @@ src/
 - **Notifications.** In-app notification centre (bell with unread count). Security events (new-device sign-in, password or 2FA changes), KYC updates, transfers and new accounts create notifications. **Web Push** is opt-in per device via `/sw.js`; permission is requested only when the user clicks "Turn on", and expired subscriptions are cleaned up automatically.
 - **Mobile.** Signed-in pages get a native-style bottom tab bar that respects the iPhone home-indicator area.
 - **Deposit / Withdraw / Trade** quick actions lead to clearly labelled "coming in Phase 4" screens.
+
+### Phase 4: funding, trading and withdrawals
+
+- **Trading.** Instant buy, sell and swap, plus limit orders; Orbtrade is the counterparty (a `BROKER` system account representing liquidity partners).
+  - Prices are always set on the server (Binance latest price, 5 s cache). The price the user saw only bounds slippage (max 1%).
+  - Amounts round in the platform's disfavour (quantities down, fees up), and every trade is one balanced journal entry.
+  - Limit orders move funds to escrow when placed and fill at the limit price once the market reaches it: via `/api/cron/process` (protected by `CRON_SECRET`) and on Trade page loads. Cancelling returns the escrow.
+  - The order book shows reference market depth from Binance, labelled as such.
+  - A converter and fee calculator sit alongside.
+- **Demo mode.** A separate DEMO account with $10,000 of virtual USD and separate `DEMO_*` system accounts. It's labelled DEMO everywhere, excluded from totals, transfers and withdrawals.
+- **Deposits** (bank, card, crypto, mobile money):
+  - Fees, limits and arrival time are shown up front.
+  - A deposit is **Pending** until confirmed; crediting is idempotent.
+  - Card payments use Stripe Checkout when `STRIPE_SECRET_KEY` is set; `/api/webhooks/stripe` verifies Stripe's signature (and a 5-minute timestamp window) before crediting.
+  - Other providers plug into `src/server/funding.ts`. Until then they run in **sandbox mode (development only, refused in production)**: sandbox deposits and crypto addresses are labelled, with "Simulate confirmation" tools.
+- **Withdrawals** (bank, card, crypto, mobile money):
+  - Funds (amount + fee) move to `WITHDRAWAL_HOLD` at request time.
+  - Each request needs an authenticator code, or an emailed code if 2FA is off.
+  - Status tracker: Requested → Under review → Approved → Sent → Completed. Rejection comes with a reason and returns the held funds.
+  - Scheduled withdrawals are supported.
+  - Crypto can only go to **address-book entries confirmed by email code**.
+  - Bank and phone details are encrypted at rest.
+- **Limits by KYC level.** 24-hour deposit and withdrawal limits in USD value (`src/config/funding.ts`). Unverified users see a verification gate instead of the forms.
+- **Tests.** `tests/reset-test-user.ts` resets rate limits and open orders for repeatable end-to-end runs on dev branches.
+- Phase 4 screen copy is inline English for now; it moves into the i18n dictionaries in Phase 7.
 
 ### Deferred (tracked)
 

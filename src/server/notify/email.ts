@@ -104,6 +104,19 @@ export function passwordResetEmail(to: string, code: string, minutes: number): E
   };
 }
 
+/** Code for a sensitive action (withdrawal, new withdrawal address). */
+export function confirmActionEmail(to: string, code: string, minutes: number, action: string): EmailMessage {
+  return {
+    to,
+    subject: `${code} is your Orbtrade security code`,
+    text: `Use ${code} to ${action}. It expires in ${minutes} minutes. If you didn't request this, secure your account and contact support.`,
+    html: layout(
+      "Confirm it's you",
+      `Use this code to ${action}:${codeBlock(code)}It expires in ${minutes} minutes. <strong>If you didn't request this, change your password immediately.</strong>`,
+    ),
+  };
+}
+
 export function passwordChangedEmail(to: string): EmailMessage {
   const help = `${siteConfig.url}/help`;
   return {
