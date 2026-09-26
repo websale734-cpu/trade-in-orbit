@@ -76,6 +76,11 @@ function layout(title: string, body: string): string {
 </table></td></tr></table></body></html>`;
 }
 
+/** Escape text before it goes into an HTML email (defence in depth: callers pass app-generated text). */
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+}
+
 function codeBlock(code: string): string {
   return `<div style="margin:20px 0;padding:16px;text-align:center;font-size:32px;letter-spacing:10px;font-weight:700;background:#15151f;border-radius:12px;color:#fff">${code}</div>`;
 }
@@ -109,7 +114,7 @@ export function priceAlertEmail(to: string, asset: string, body: string): EmailM
     to,
     subject: `${asset} price alert`,
     text: `${body}\n\nManage alerts: ${siteConfig.url}/alerts`,
-    html: layout(`${asset} price alert`, `${body}<br><br><a style="color:#a78bfa" href="${siteConfig.url}/alerts">Manage your alerts</a>`),
+    html: layout(`${esc(asset)} price alert`, `${esc(body)}<br><br><a style="color:#a78bfa" href="${siteConfig.url}/alerts">Manage your alerts</a>`),
   };
 }
 
@@ -118,7 +123,7 @@ export function simpleNoticeEmail(to: string, subject: string, body: string, lin
     to,
     subject,
     text: `${body}\n\n${linkLabel}: ${siteConfig.url}${linkPath}`,
-    html: layout(subject, `${body}<br><br><a style="color:#a78bfa" href="${siteConfig.url}${linkPath}">${linkLabel}</a>`),
+    html: layout(esc(subject), `${esc(body)}<br><br><a style="color:#a78bfa" href="${siteConfig.url}${esc(linkPath)}">${esc(linkLabel)}</a>`),
   };
 }
 

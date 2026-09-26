@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, unit tests, audit, build
+    runs-on: ubuntu-latest
+    env:
+      # Build-time only; no real secrets are needed to compile. Prisma's config
+      # requires a URL to be defined even for `generate` (it never connects).
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      DATABASE_URL_UNPOOLED: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma validate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm audit --audit-level=high
+      - run: npm run build
+
+  e2e:
+    name: Playwright smoke tests
+    needs: check
+    runs-on: ubuntu-latest
+    # Needs a disposable database: set the DATABASE_URL secret to a Neon *preview/CI branch*, never production.
+    if: ${{ vars.E2E_ENABLED == 'true' }}
+    env:
+      CI: "true"
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+      DATABASE_URL_UNPOOLED: ${{ secrets.CI_DATABASE_URL_UNPOOLED }}
+      SESSION_SECRET: ${{ secrets.CI_SESSION_SECRET }}
+      DATA_ENCRYPTION_KEY: ${{ secrets.CI_DATA_ENCRYPTION_KEY }}
+      # Production mode refuses console providers; smoke tests never send email/SMS, so placeholders suffice.
+      EMAIL_PROVIDER: resend
+      RESEND_API_KEY: ci-placeholder
+      SMS_PROVIDER: twilio
+      TWILIO_ACCOUNT_SID: ci-placeholder
+      TWILIO_AUTH_TOKEN: ci-placeholder
+      TWILIO_VERIFY_SERVICE_SID: ci-placeholder
+      PW_CHANNEL: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run db:deploy
+      - run: npm run build
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

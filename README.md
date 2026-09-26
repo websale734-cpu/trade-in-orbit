@@ -1,6 +1,6 @@
 # Orbtrade
 
-A crypto brokerage web platform: registration and KYC, funded accounts, trading, withdrawals, rewards and a full admin panel.
+A crypto brokerage web platform: registration and KYC, funded accounts, trading, withdrawals, rewards, support, a public API and a full admin panel.
 
 Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **PostgreSQL on Neon via Prisma 7**.
 
@@ -15,9 +15,9 @@ Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **Po
 | 3 | Dashboard, accounts, live prices, watchlist (+ ledger core, notifications) | ✅ Done |
 | 4 | Deposits, trading, order book, withdrawals, ledger | ✅ Done |
 | 5 | Admin panel | ✅ Done |
-| 6 | Rewards, referrals, staking, alerts, recurring buys, gift cards | ⏳ Next |
-| 7 | Support, content pages, reports, API keys, multi-language | |
-| 8 | Security review, testing, mobile polish, deployment guide | |
+| 6 | Referrals, loyalty tiers, price alerts, recurring buys | ✅ Done (staking and gift cards postponed) |
+| 7 | Support tickets + live chat, help pages, history, statements, tax reports, API keys | ✅ Done (blog, academy, leaderboard and multi-language postponed) |
+| 8 | Security review, tests, CI, mobile polish, deployment guide | ✅ Done: see [SECURITY.md](SECURITY.md) and [DEPLOYMENT.md](DEPLOYMENT.md) |
 
 ## Getting started
 
@@ -61,6 +61,8 @@ npm run dev                     # http://localhost:3000
 | `npm run db:deploy` | Apply committed migrations, e.g. to production |
 | `npm run db:seed` | Seed demo data (refuses to run on `production`) |
 | `npm run db:studio` | Browse the database |
+| `npm test` | Unit tests (Vitest) |
+| `npm run test:e2e` | Playwright smoke tests (reuses a running dev server; set `E2E_EMAIL`/`E2E_PASSWORD` for signed-in checks) |
 | `npm run test:ledger` | Integration test that attacks the ledger's database guarantees (dev branches only) |
 
 ## Database branches (Neon)
@@ -93,6 +95,8 @@ All variables are documented in [`.env.example`](.env.example). Secrets are read
 | `BINANCE_REST_URL` | 3 | no | Price history for charts (Binance public market data) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | 3 | for push | Web Push keys (`npx web-push generate-vapid-keys`); blank = in-app notifications only |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | 4 | for cards | Card deposits |
+| `CRON_SECRET` | 4 | prod | Protects `/api/cron/process` (orders, withdrawals, alerts, recurring buys, statement notices) |
+| `E2E_BASE_URL`, `E2E_EMAIL`, `E2E_PASSWORD` | 8 | no | Playwright smoke tests |
 
 ## Project structure
 
@@ -102,14 +106,19 @@ prisma/
   migrations/                Committed SQL migrations
   seed.ts                    Development-only demo users
 src/
-  proxy.ts                   Optimistic auth redirect (no DB); real checks are in the DAL
+  proxy.ts                   Per-request CSP nonce + optimistic auth redirect (no DB); real checks are in the DAL
   app/
     layout.tsx               Root layout: fonts, theme script, i18n provider
-    (marketing)/             Public pages: landing, legal placeholders, "coming soon" pages
+    (marketing)/             Public pages: landing, help, FAQ, about, careers, contact, listing request, legal placeholders
     (auth)/                  Register, login (+2FA), forgot/reset password, and their actions
     (onboarding)/onboarding/ Email code, phone code, 2FA setup, KYC upload
-    (app)/                   Signed-in area: dashboard, settings/security
-    api/market/tickers/      Public market snapshot (JSON)
+    (app)/                   Signed-in area: dashboard, accounts, trade, deposit/withdraw, history,
+                             rewards, alerts, recurring, support, more, settings (security, API keys)
+    admin/                   Staff area (RBAC + 2FA), incl. support inbox and listing requests
+    api/market/              Public market data (tickers, candles, depth)
+    api/v1/                  Public REST API (API-key auth)
+    api/cron/process/        Background jobs
+    r/[code]/                Referral links
   components/                UI: brand, theme, market, landing, layout, auth, ui
   config/                    Site constants, fee schedule, tracked coins, countries
   i18n/                      Locale config, dictionaries, server/client helpers
@@ -117,6 +126,14 @@ src/
   server/                    Server-only: env, db, crypto, rate limits, notify (email/SMS),
     auth/                      sessions, DAL, codes, TOTP, passwords, security log
     kyc.ts                     document validation and encrypted storage
+    ledger.ts, trading.ts      double-entry ledger, trading engine (loyalty fee discounts)
+    rewards.ts, automation.ts  referrals, loyalty tiers, price alerts, recurring buys
+    support.ts, statements.ts  tickets/chat, history, statement and tax PDFs/CSV
+    api-keys.ts                API key issuance and bearer authentication
+tests/
+  unit/                      Vitest unit tests
+  e2e/                       Playwright smoke tests
+  ledger.integration.ts      Ledger guarantees against a dev branch
 ```
 
 ## Key design decisions
@@ -124,7 +141,7 @@ src/
 ### Phase 1: UI
 
 - **Theming.** Every colour is a CSS variable in `globals.css`, switched by `data-theme` on `<html>`. Dark is the default. An inline script applies the saved choice before first paint, so there's no flash.
-- **Multi-language.** Copy lives in typed dictionaries (`src/i18n/dictionaries`); the locale comes from the `orb_locale` cookie. To add a language, see `src/i18n/config.ts`; TypeScript flags missing keys. (Server-side validation messages are English for now; they move into dictionaries in Phase 7.)
+- **Multi-language.** Copy lives in typed dictionaries (`src/i18n/dictionaries`); the locale comes from the `orb_locale` cookie. To add a language, see `src/i18n/config.ts`; TypeScript flags missing keys. Only English ships for now (multi-language was postponed); newer screens use inline English copy.
 - **Live prices.** A CoinGecko snapshot (cached 60 s) plus a Binance public WebSocket for real-time ticks. If no data is available, the UI says so; it never shows made-up prices.
 - **Testimonials and content.** Only admin-approved reviews from real customers are shown; promotions, articles and FAQ come from the admin panel (the Phase 1 `DEV_FIXTURES` samples were removed in Phase 5).
 - **Fees.** Read from `src/config/fees.ts` until admins manage them in Phase 5. **Review before launch.**
@@ -182,7 +199,6 @@ src/
   - Bank and phone details are encrypted at rest.
 - **Limits by KYC level.** 24-hour deposit and withdrawal limits in USD value (`src/config/funding.ts`). Unverified users see a verification gate instead of the forms.
 - **Tests.** `tests/reset-test-user.ts` resets rate limits and open orders for repeatable end-to-end runs on dev branches.
-- Phase 4 screen copy is inline English for now; it moves into the i18n dictionaries in Phase 7.
 
 ### Phase 5: admin panel (`/admin`)
 
@@ -204,8 +220,49 @@ src/
 - **Resilience.** Database connection-acquisition failures (e.g. Neon waking from scale-to-zero) are retried once; they occur before any SQL is sent, so they're safe. There's also a branded error page.
 - **Moved to Phase 7:** support ticket inbox and live chat (built with the customer-facing support system).
 
-### Deferred (tracked)
+### Phase 6: rewards and automation
 
-- Passkey / biometric login (WebAuthn) and the withdrawal address book: planned alongside withdrawals (Phase 4) and the security review (Phase 8).
-- A nonce-based Content-Security-Policy: Phase 8.
-- `npm audit` reports advisories in `mysql2`, a transitive dependency of the Prisma tooling. Orbtrade doesn't use MySQL; the suggested fix is a downgrade to Prisma 6, so it's left as is and will be re-checked in Phase 8.
+- **Referrals.** Each customer gets a link (`/r/CODE`). Clicks are counted (IPs stored only as keyed hashes) and the code is remembered for 30 days. The bonus is paid **once** per referred customer when their completed deposits reach the admin-set threshold. Bonuses are REWARD journal entries from a `REWARDS` system account, and a unique constraint makes double payment impossible. The Rewards page shows the link, clicks, sign-ups, qualified referrals, earnings and referred friends (first name + initial only).
+- **Loyalty tiers.** Based on 30-day real (non-demo) trading volume. Each tier's fee discount is applied by the trading engine itself, so the Trade page shows exactly what's charged. Tiers are editable in the admin panel.
+- **Price alerts.** Up to 20 active per customer. Each alert fires once (claimed atomically), notifies in-app and optionally by email.
+- **Recurring buys.** Daily, weekly or monthly, minimum ``, up to 10 per customer. Each run is an instant buy with an idempotency key derived from the schedule and its due time, so a retried job can't buy twice. Missed runs after downtime aren't back-filled. Failures are notified, and three in a row pause the schedule. The page states plainly that buying regularly doesn't guarantee a profit.
+- **Navigation.** Desktop: Dashboard, Accounts, Markets, Trade, History, More. Phones: five tabs (Home, Markets, Trade, History, More). The **More** hub links everything else.
+- Staking and gift cards were postponed.
+
+### Phase 7: support, records and API
+
+- **Support.** Customers open tickets (category + message) and reply in threads. A **live chat** widget on every signed-in page polls only while it's open. Staff use **Admin → Support inbox**: filters, assign to me, status (Open / Awaiting customer / Resolved / Closed) and replies, all audit-logged. Customers are notified in-app, and by email for tickets; emails never include the message itself. Message bodies render as plain text.
+- **Public pages.** Help centre (topics, FAQ, chat/ticket/email/phone contacts), FAQ, About (placeholder for company and licence details), Careers, Contact, and a coin listing request form (rate-limited, honeypot, reviewed in Admin → Listing requests). The blog and academy links were removed, since those were postponed.
+- **History.** All ledger activity with type, date and text filters, pagination and CSV export (formula-safe).
+- **Monthly statements (PDF).** Opening and closing balances plus every transaction. On the 1st–3rd of each month, customers with activity get a "statement ready" notice, recorded in `statement_dispatches` so it's sent once.
+- **Tax report** (CSV / PDF). Buys, sells, swaps (both legs valued in USD at execution) and rewards for a calendar year, labelled "not tax advice".
+- **API keys + REST API.**
+  - Endpoints: `GET /api/v1/account`, `GET /api/v1/prices`, `GET/POST /api/v1/orders` and `DELETE /api/v1/orders/{id}`.
+  - READ or TRADE permission, a password needed to create a key, the key shown once and stored only as an HMAC, 120 requests/min, instant revoke.
+  - `clientOrderId` makes order retries safe (409 on repeat).
+  - Keys can never withdraw funds.
+
+### Phase 8: security review, tests and deployment
+
+- The full review and threat model are in **[SECURITY.md](SECURITY.md)**. Changes made in this phase:
+  - nonce-based CSP with `strict-dynamic`;
+  - `__Host-` session cookie in production;
+  - Cross-Origin-Opener-Policy;
+  - change-password with re-authentication;
+  - HTML escaping in notice emails;
+  - rate limits on every new endpoint;
+  - an authorization and IDOR audit of every action and route;
+  - `npm audit` at 0 (patched transitive versions via `overrides`).
+- **Tests.**
+  - Vitest unit tests (encryption, HMAC scoping, redirect safety, password policy, CSV injection, schedules, formatting).
+  - Playwright smoke tests on desktop and mobile that fail on any CSP violation.
+  - The ledger integration test.
+  - The Phase 6–8 browser end-to-end run passed 62/63 checks. The one failure was the test's own assertion; the feature was verified manually.
+- **CI.** GitHub Actions (`.github/workflows/ci.yml`) runs prisma validate, lint, typecheck, unit tests, audit and build, plus optional e2e against a disposable Neon branch.
+- **Deployment.** **[DEPLOYMENT.md](DEPLOYMENT.md)** covers Vercel + Neon, environment variables, migrations, cron (`vercel.json`), Stripe webhooks, providers and the go-live checklist.
+
+### Postponed
+
+- Staking, gift cards, leaderboard, blog, academy and multi-language (the i18n scaffolding remains; English only).
+- Passkey (WebAuthn) login.
+- Real bank, crypto and mobile-money payment rails. These run in sandbox mode in development, which production refuses.

@@ -29,7 +29,7 @@ export default async function AlertsPage() {
           Get a notification when a coin crosses your price. Each alert fires once.
         </p>
       </div>
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
           <h2 className="flex items-center gap-2 font-semibold">
             <BellRing className="h-4 w-4 text-accent" /> New alert

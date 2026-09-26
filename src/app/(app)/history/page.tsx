@@ -56,7 +56,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">History</h1>
           {tabs}
         </div>
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
             <h2 className="font-semibold">Monthly statements</h2>
             <p className="mt-1 text-sm text-muted">Opening and closing balances plus every transaction, as a PDF.</p>
