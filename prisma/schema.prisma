@@ -67,6 +67,8 @@ model User {
   termsAcceptedAt DateTime @map("terms_accepted_at")
   termsVersion    String   @map("terms_version")
   locale          String   @default("en")
+  /// ISO 4217 code (lower-case) for showing balances in local currency.
+  currency        String   @default("usd")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -76,8 +78,13 @@ model User {
   authChallenges    AuthChallenge[]
   recoveryCodes     RecoveryCode[]
   securityEvents    SecurityEvent[]
-  kycSubmissions    KycSubmission[]  @relation("KycSubmitter")
-  kycReviews        KycSubmission[]  @relation("KycReviewer")
+  kycSubmissions    KycSubmission[]    @relation("KycSubmitter")
+  kycReviews        KycSubmission[]    @relation("KycReviewer")
+  accounts          Account[]
+  watchlist         WatchlistItem[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  journalEntries    JournalEntry[]
 
   @@map("users")
 }
@@ -251,4 +258,185 @@ model RateLimit {
   expiresAt DateTime @map("expires_at")
 
   @@map("rate_limits")
+}
+
+// ===========================================================================
+// Assets, accounts and the double-entry ledger (Phase 3)
+//
+// Balances only change through journal entries. Each entry has two or more
+// postings whose amounts sum to zero per asset, and the database enforces this
+// at commit time. Postings and entries are append-only (UPDATE/DELETE are
+// blocked by triggers), and user balances can't go negative (CHECK
+// constraint). See the migration `ledger` for the SQL.
+// ===========================================================================
+
+enum AssetType {
+  FIAT
+  CRYPTO
+}
+
+model Asset {
+  /// Ticker, e.g. "BTC", "USD".
+  code          String    @id
+  name          String
+  type          AssetType
+  /// Decimal places used for display and for rounding amounts entered by users.
+  decimals      Int
+  coingeckoId   String?   @map("coingecko_id")
+  binanceSymbol String?   @map("binance_symbol")
+  enabled       Boolean   @default(true)
+  sortOrder     Int       @default(0) @map("sort_order")
+
+  ledgerAccounts LedgerAccount[]
+  postings       Posting[]
+  watchlist      WatchlistItem[]
+
+  @@map("assets")
+}
+
+enum AccountType {
+  TRADING
+  SAVINGS
+}
+
+/// A user-facing account ("Trading", "Savings", ...). Holds one ledger account per asset.
+model Account {
+  id         String      @id @default(cuid())
+  userId     String      @map("user_id")
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  name       String
+  type       AccountType
+  isDefault  Boolean     @default(false) @map("is_default")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  archivedAt DateTime?   @map("archived_at")
+
+  ledgerAccounts LedgerAccount[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/// A balance for one asset. Owned by a user account, or by the platform
+/// (`systemCode`, e.g. FEES, CUSTODY, DEV_FAUCET).
+model LedgerAccount {
+  id            String   @id @default(cuid())
+  accountId     String?  @map("account_id")
+  account       Account? @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  systemCode    String?  @map("system_code")
+  assetCode     String   @map("asset_code")
+  asset         Asset    @relation(fields: [assetCode], references: [code])
+  balance       Decimal  @default(0) @db.Decimal(38, 18)
+  /// Only system accounts (e.g. an external-funds clearing account) may go negative.
+  allowNegative Boolean  @default(false) @map("allow_negative")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  postings Posting[]
+
+  @@unique([accountId, assetCode])
+  @@unique([systemCode, assetCode])
+  @@map("ledger_accounts")
+}
+
+enum EntryType {
+  TRANSFER
+  DEPOSIT
+  WITHDRAWAL
+  TRADE
+  FEE
+  ADJUSTMENT
+  DEV_SEED
+}
+
+model JournalEntry {
+  id             String    @id @default(cuid())
+  type           EntryType
+  description    String
+  /// The user the entry belongs to (or the admin who made an adjustment).
+  userId         String?   @map("user_id")
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  /// Required for manual ADJUSTMENT entries (admin panel, Phase 5).
+  reason         String?
+  /// Client-supplied key so a double-submitted form posts only once.
+  idempotencyKey String?   @unique @map("idempotency_key")
+  metadata       Json?
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  postings Posting[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("journal_entries")
+}
+
+model Posting {
+  id              String        @id @default(cuid())
+  entryId         String        @map("entry_id")
+  entry           JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  ledgerAccountId String        @map("ledger_account_id")
+  ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+  assetCode       String        @map("asset_code")
+  asset           Asset         @relation(fields: [assetCode], references: [code])
+  /// Signed: credit > 0, debit < 0.
+  amount          Decimal       @db.Decimal(38, 18)
+  /// Ledger account balance immediately after this posting (audit trail).
+  balanceAfter    Decimal       @map("balance_after") @db.Decimal(38, 18)
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@index([entryId])
+  @@index([ledgerAccountId, createdAt(sort: Desc)])
+  @@map("postings")
+}
+
+// ===========================================================================
+// Watchlist and notifications (Phase 3)
+// ===========================================================================
+
+model WatchlistItem {
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetCode String   @map("asset_code")
+  asset     Asset    @relation(fields: [assetCode], references: [code])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, assetCode])
+  @@map("watchlist_items")
+}
+
+enum NotificationType {
+  SECURITY
+  ACCOUNT
+  KYC
+  TRANSFER
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  /// Relative in-app link opened when the notification is clicked.
+  link      String?
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+/// Web Push subscription for one browser/device.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }

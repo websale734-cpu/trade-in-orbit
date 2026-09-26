@@ -1,15 +1,23 @@
 import Link from "next/link";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { Bell, LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { MarketProvider } from "@/components/market/market-provider";
+import { AppNav, MobileTabBar } from "@/components/layout/app-nav";
 import { requireUser } from "@/server/auth/dal";
+import { unreadCount } from "@/server/notify/notifications";
+import { getMarketSnapshot } from "@/lib/market/coingecko";
 import { getDictionary } from "@/i18n/server";
 import { logout } from "../(auth)/actions";
 
-/** Shell for signed-in pages. Every page below also calls requireUser() itself. */
+/**
+ * Shell for signed-in pages: live market data for every page, top bar with
+ * notifications, and a bottom tab bar on phones. Every page below also calls
+ * requireUser() itself; the layout check is not the only guard.
+ */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const { user } = await requireUser();
-  const dict = await getDictionary();
+  const [dict, snapshot, unread] = await Promise.all([getDictionary(), getMarketSnapshot(), unreadCount(user.id)]);
   const n = dict.app.nav;
   const initials = user.name
     .split(/\s+/)
@@ -18,56 +26,59 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     .join("")
     .toUpperCase();
 
+  const links = [
+    { href: "/dashboard", label: n.dashboard, icon: "home" as const },
+    { href: "/accounts", label: n.accounts, icon: "wallet" as const },
+    { href: "/markets", label: n.markets, icon: "chart" as const },
+    { href: "/trade", label: n.trade, icon: "trade" as const },
+    { href: "/settings/security", label: n.security, icon: "shield" as const },
+  ];
+
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-40 border-b border-line bg-bg/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-          <Link href="/dashboard" aria-label="Dashboard">
-            <Logo />
-          </Link>
-          <nav className="ml-4 hidden items-center gap-1 sm:flex">
-            <Link
-              href="/dashboard"
-              className="rounded-full px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
-            >
-              {n.dashboard}
+    <MarketProvider initial={snapshot}>
+      <div className="flex min-h-dvh flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        <header className="sticky top-0 z-40 border-b border-line bg-bg/75 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
+            <Link href="/dashboard" aria-label="Dashboard">
+              <Logo />
             </Link>
-            <Link
-              href="/settings/security"
-              className="rounded-full px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
-            >
-              {n.security}
-            </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
-            <Link
-              href="/settings/security"
-              aria-label={n.security}
-              className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-muted hover:text-fg sm:hidden"
-            >
-              <ShieldCheck className="h-[18px] w-[18px]" />
-            </Link>
-            <span
-              className="bg-brand grid h-10 w-10 place-items-center rounded-full text-sm font-semibold text-white"
-              title={user.name}
-            >
-              {initials}
-            </span>
-            <form action={logout}>
-              <button
-                type="submit"
-                aria-label={n.logout}
-                title={n.logout}
-                className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-muted hover:text-fg"
+            <AppNav links={links} />
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
+              <Link
+                href="/notifications"
+                aria-label={unread ? `${n.notifications} (${unread} unread)` : n.notifications}
+                className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-muted hover:text-fg"
               >
-                <LogOut className="h-[18px] w-[18px]" />
-              </button>
-            </form>
+                <Bell className="h-[18px] w-[18px]" />
+                {unread > 0 && (
+                  <span className="bg-brand absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[10px] font-bold text-white">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </Link>
+              <span
+                className="bg-brand hidden h-10 w-10 place-items-center rounded-full text-sm font-semibold text-white sm:grid"
+                title={user.name}
+              >
+                {initials}
+              </span>
+              <form action={logout}>
+                <button
+                  type="submit"
+                  aria-label={n.logout}
+                  title={n.logout}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-muted hover:text-fg"
+                >
+                  <LogOut className="h-[18px] w-[18px]" />
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">{children}</main>
-    </div>
+        </header>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-10">{children}</main>
+        <MobileTabBar links={links.map((l) => (l.href === "/dashboard" ? { ...l, label: n.home } : l))} />
+      </div>
+    </MarketProvider>
   );
 }

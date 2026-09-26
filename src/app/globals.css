@@ -37,6 +37,19 @@
   --glow-violet: rgb(139 92 246 / 0.35);
   --glow-cyan: rgb(34 211 238 / 0.22);
   --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 20px 50px -20px rgb(0 0 0 / 0.6);
+
+  /* Chart categorical slots, validated for CVD separation and contrast on the
+     dark card surface (#101015) with the dataviz palette validator. Fixed order;
+     colour follows the asset, never its rank. */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-other: #5f5f73;
+  --chart-grid: rgb(255 255 255 / 0.06);
+  --chart-surface: #101015;
 }
 
 [data-theme="light"] {
@@ -63,6 +76,18 @@
   --glow-violet: rgb(124 58 237 / 0.18);
   --glow-cyan: rgb(8 145 178 / 0.12);
   --shadow-card: 0 1px 2px rgb(15 15 40 / 0.04), 0 16px 40px -20px rgb(15 15 40 / 0.18);
+
+  /* Light steps of the same hues (validated on #fcfcfe). Slots 3-5 are below
+     3:1 contrast, so charts always pair them with visible labels. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-other: #a3a3b5;
+  --chart-grid: rgb(15 15 40 / 0.07);
+  --chart-surface: #fcfcfe;
 }
 
 @theme inline {

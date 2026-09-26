@@ -12,8 +12,8 @@ Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **Po
 | --- | --- | --- |
 | 1 | Project setup, design system, landing page, dark/light mode | ✅ Done |
 | 2 | Registration, email + SMS codes, login, 2FA, KYC upload | ✅ Done |
-| 3 | Dashboard, accounts, live prices, watchlist | ⏳ Next |
-| 4 | Deposits, trading, order book, withdrawals, ledger | |
+| 3 | Dashboard, accounts, live prices, watchlist (+ ledger core, notifications) | ✅ Done |
+| 4 | Deposits, trading, order book, withdrawals, ledger | ⏳ Next |
 | 5 | Admin panel | |
 | 6 | Rewards, referrals, staking, alerts, recurring buys, gift cards | |
 | 7 | Support, content pages, reports, API keys, multi-language | |
@@ -44,7 +44,7 @@ npm run db:seed                 # optional: demo users (dev branches only)
 npm run dev                     # http://localhost:3000
 ```
 
-**Demo accounts** (after `db:seed`, dev branches only): `demo@orbtrade.dev` (KYC not started) and `verified@orbtrade.dev` (KYC approved). Password for both: `Orbtrade-Demo-2026!`.
+**Demo accounts** (after `db:seed`, dev branches only): `demo@orbtrade.dev` (KYC not started) and `verified@orbtrade.dev` (KYC approved), each with Trading and Savings accounts, demo balances and a watchlist. Password for both: `Orbtrade-Demo-2026!`. Demo balances are posted through the ledger as `DEV_SEED` entries from a dev-only faucet account.
 
 ### Scripts
 
@@ -59,6 +59,7 @@ npm run dev                     # http://localhost:3000
 | `npm run db:deploy` | Apply committed migrations, e.g. to production |
 | `npm run db:seed` | Seed demo data (refuses to run on `production`) |
 | `npm run db:studio` | Browse the database |
+| `npm run test:ledger` | Integration test that attacks the ledger's database guarantees (dev branches only) |
 
 ## Database branches (Neon)
 
@@ -88,6 +89,8 @@ All variables are documented in [`.env.example`](.env.example). Secrets are read
 | `SESSION_IDLE_MINUTES` / `SESSION_MAX_HOURS` | 2 | no | Idle timeout (30) / absolute session length (12) |
 | `EMAIL_PROVIDER`, `RESEND_API_KEY`, `SENDGRID_API_KEY`, `EMAIL_FROM` | 2 | yes | Verification and notification emails (`console` in dev only) |
 | `SMS_PROVIDER`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` | 2 | yes | SMS codes via Twilio Verify (`console` in dev only) |
+| `BINANCE_REST_URL` | 3 | no | Price history for charts (Binance public market data) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | 3 | for push | Web Push keys (`npx web-push generate-vapid-keys`); blank = in-app notifications only |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | 4 | for cards | Card deposits |
 
 ## Project structure
@@ -136,6 +139,24 @@ src/
 - **Security log.** Registration, logins (including failures), 2FA changes, password resets, KYC submissions and session revocations, with device, IP and (where the host provides geo headers) location.
 - **CSRF / XSS.** State changes go through Server Actions, which reject cross-origin requests. React escapes all output, and inputs are validated with Zod on the server.
 - **Password reset** revokes every session and emails a notice. The reset request looks identical whether or not the email exists.
+
+### Phase 3: money, dashboard and notifications
+
+- **Double-entry ledger, enforced by Postgres.** Balances change only by inserting postings; a trigger applies each posting, locks the row and records `balance_after`. The database also rejects:
+  - direct balance edits
+  - updates or deletes of postings and journal entries (append-only)
+  - entries that don't sum to zero per asset, checked at commit
+  - negative user balances
+  - postings whose asset doesn't match the ledger account's
+
+  `npm run test:ledger` attacks each rule, including a concurrent double-spend, and reconciles every balance against its postings. Admin adjustments (Phase 5) must also be journal entries with a reason.
+- **Accounts.** Every user gets a default Trading account and can open up to 5 (Trading/Savings). Transfers between their own accounts are instant. Each has an idempotency key, so a double-click or retry can't post twice.
+- **Dashboard.** Total balance in USD plus a chosen local currency (20 currencies; CoinGecko FX rates, display only), 24h change, holdings donut, a live price chart (1D/1W/1M/1Y from Binance history, last point updated live), watchlist, quick actions and a news feed.
+  - Charts follow the data-viz rules: a validated colour-blind-safe palette (light and dark), colours tied to assets rather than rank, ≤ 6 donut segments with the tail in "Other", the legend doubling as a full table, crosshair tooltips usable by keyboard, and screen-reader tables.
+- **News.** Public RSS feeds (Cointelegraph, CoinDesk, Decrypt, The Block), treated as untrusted: plain-text titles, `https` links on the publisher's own domain only, `noopener`.
+- **Notifications.** In-app notification centre (bell with unread count). Security events (new-device sign-in, password or 2FA changes), KYC updates, transfers and new accounts create notifications. **Web Push** is opt-in per device via `/sw.js`; permission is requested only when the user clicks "Turn on", and expired subscriptions are cleaned up automatically.
+- **Mobile.** Signed-in pages get a native-style bottom tab bar that respects the iPhone home-indicator area.
+- **Deposit / Withdraw / Trade** quick actions lead to clearly labelled "coming in Phase 4" screens.
 
 ### Deferred (tracked)
 

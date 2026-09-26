@@ -3,17 +3,20 @@
  *
  *   npm run db:seed
  *
- * Creates demo accounts that are already through onboarding, so you can log in
- * without going through signup. Refuses to run when NODE_ENV=production or when
- * the linked Neon branch is `production`. Seed data lives only on dev branches.
+ * Creates demo accounts that are already through onboarding, with Trading and
+ * Savings accounts, demo balances and a watchlist. Refuses to run when
+ * NODE_ENV=production or when the linked Neon branch is `production`. Seed
+ * data lives only on dev branches.
  *
- * Safe to re-run: existing demo users are updated, not duplicated.
+ * Balances are created the only way the ledger allows: balanced DEV_SEED
+ * journal entries from a dev-only DEV_FAUCET system account. Safe to re-run
+ * (users are upserted; funding is idempotent per user).
  */
 import { config } from "dotenv";
 import { randomBytes } from "node:crypto";
 import { argon2id } from "hash-wasm";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../src/generated/prisma/client";
+import { Prisma, PrismaClient } from "../src/generated/prisma/client";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
@@ -27,10 +30,60 @@ const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.
 
 const DEMO_PASSWORD = "Orbtrade-Demo-2026!";
 
-const demoUsers = [
-  { email: "demo@orbtrade.dev", name: "Demo Trader", phone: "+447700900001", kycStatus: "NONE" as const },
-  { email: "verified@orbtrade.dev", name: "Verified Demo", phone: "+447700900002", kycStatus: "APPROVED" as const },
+type Funding = Record<string, string>;
+const demoUsers: {
+  email: string;
+  name: string;
+  phone: string;
+  kyc: "NONE" | "APPROVED";
+  trading: Funding;
+  savings: Funding;
+}[] = [
+  {
+    email: "demo@orbtrade.dev",
+    name: "Demo Trader",
+    phone: "+447700900001",
+    kyc: "NONE",
+    trading: { USD: "1250", BTC: "0.0425", ETH: "0.85" },
+    savings: { USDT: "500" },
+  },
+  {
+    email: "verified@orbtrade.dev",
+    name: "Verified Demo",
+    phone: "+447700900002",
+    kyc: "APPROVED",
+    trading: { USD: "4800", BTC: "0.18", ETH: "2.4", SOL: "35", XRP: "1200", DOGE: "5000" },
+    savings: { USDT: "2500", BTC: "0.05" },
+  },
 ];
+
+async function fund(tx: Prisma.TransactionClient, userId: string, accountId: string, funding: Funding) {
+  for (const [assetCode, amount] of Object.entries(funding)) {
+    const faucet = await tx.ledgerAccount.upsert({
+      where: { systemCode_assetCode: { systemCode: "DEV_FAUCET", assetCode } },
+      update: {},
+      create: { systemCode: "DEV_FAUCET", assetCode, allowNegative: true },
+    });
+    const target = await tx.ledgerAccount.upsert({
+      where: { accountId_assetCode: { accountId, assetCode } },
+      update: {},
+      create: { accountId, assetCode },
+    });
+    await tx.journalEntry.create({
+      data: {
+        type: "DEV_SEED",
+        description: `Development funding: ${amount} ${assetCode}`,
+        userId,
+        postings: {
+          create: [
+            { ledgerAccountId: faucet.id, assetCode, amount: new Prisma.Decimal(amount).negated(), balanceAfter: 0 },
+            { ledgerAccountId: target.id, assetCode, amount: new Prisma.Decimal(amount), balanceAfter: 0 },
+          ],
+        },
+      },
+    });
+  }
+}
 
 async function main() {
   const passwordHash = await argon2id({
@@ -52,13 +105,43 @@ async function main() {
       phone: u.phone,
       phoneVerifiedAt: now,
       twoFactorPromptedAt: now,
-      kycStatus: u.kycStatus,
-      kycLevel: u.kycStatus === "APPROVED" ? 1 : 0,
+      kycStatus: u.kyc,
+      kycLevel: u.kyc === "APPROVED" ? 1 : 0,
       termsAcceptedAt: now,
       termsVersion: "dev-seed",
     };
-    await db.user.upsert({ where: { email: u.email }, update: data, create: { email: u.email, ...data } });
-    console.log(`  seeded ${u.email} (KYC ${u.kycStatus})`);
+    const user = await db.user.upsert({ where: { email: u.email }, update: data, create: { email: u.email, ...data } });
+
+    const trading = await db.account.upsert({
+      where: { userId_name: { userId: user.id, name: "Trading" } },
+      update: {},
+      create: { userId: user.id, name: "Trading", type: "TRADING", isDefault: true },
+    });
+    const savings = await db.account.upsert({
+      where: { userId_name: { userId: user.id, name: "Savings" } },
+      update: {},
+      create: { userId: user.id, name: "Savings", type: "SAVINGS" },
+    });
+
+    const alreadyFunded = await db.journalEntry.findFirst({ where: { userId: user.id, type: "DEV_SEED" } });
+    if (!alreadyFunded) {
+      await db.$transaction(
+        async (tx) => {
+          await fund(tx, user.id, trading.id, u.trading);
+          await fund(tx, user.id, savings.id, u.savings);
+        },
+        { timeout: 60_000, maxWait: 10_000 },
+      );
+    }
+
+    for (const assetCode of ["BTC", "ETH", "SOL"]) {
+      await db.watchlistItem.upsert({
+        where: { userId_assetCode: { userId: user.id, assetCode } },
+        update: {},
+        create: { userId: user.id, assetCode },
+      });
+    }
+    console.log(`  seeded ${u.email} (KYC ${u.kyc})${alreadyFunded ? " (already funded)" : " + demo balances"}`);
   }
   console.log(`\nDemo password for all seeded users: ${DEMO_PASSWORD}`);
 }
