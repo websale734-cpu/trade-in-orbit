@@ -90,6 +90,8 @@ model User {
   orders            Order[]
   withdrawals       Withdrawal[]
   withdrawalAddrs   WithdrawalAddress[]
+  auditLogs         AdminAuditLog[]
+  testimonials      Testimonial[]
 
   @@map("users")
 }
@@ -294,6 +296,8 @@ model Asset {
   coingeckoId   String?   @map("coingecko_id")
   binanceSymbol String?   @map("binance_symbol")
   enabled       Boolean   @default(true)
+  /// The X/USD trading pair is open (buy/sell/swap/limit).
+  tradingEnabled Boolean  @default(true) @map("trading_enabled")
   sortOrder     Int       @default(0) @map("sort_order")
 
   ledgerAccounts LedgerAccount[]
@@ -610,4 +614,111 @@ model WithdrawalAddress {
 
   @@unique([userId, assetCode, address])
   @@map("withdrawal_addresses")
+}
+
+// ===========================================================================
+// Administration and content (Phase 5)
+// ===========================================================================
+
+/// Append-only record of every staff action (enforced by trigger).
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  details    Json?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@map("admin_audit_logs")
+}
+
+/// Admin-editable platform settings (fees, limits, rewards). Values are validated JSON.
+model PlatformSetting {
+  key         String   @id
+  value       Json
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+model Promotion {
+  id        String   @id @default(cuid())
+  message   String
+  ctaLabel  String?  @map("cta_label")
+  ctaHref   String?  @map("cta_href")
+  startsAt  DateTime @map("starts_at")
+  endsAt    DateTime @map("ends_at")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("promotions")
+}
+
+enum ArticleKind {
+  BLOG
+  ACADEMY
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Article {
+  id          String        @id @default(cuid())
+  kind        ArticleKind
+  slug        String        @unique
+  title       String
+  excerpt     String
+  /// Markdown.
+  body        String
+  category    String
+  level       String?
+  readMinutes Int           @default(3) @map("read_minutes")
+  status      ContentStatus @default(DRAFT)
+  publishedAt DateTime?     @map("published_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([kind, status, publishedAt(sort: Desc)])
+  @@map("articles")
+}
+
+model FaqItem {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  sortOrder Int      @default(0) @map("sort_order")
+  published Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("faq_items")
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Reviews submitted by real, signed-in users. Only APPROVED ones are public.
+model Testimonial {
+  id          String       @id @default(cuid())
+  userId      String       @map("user_id")
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String       @map("display_name")
+  rating      Int
+  body        String
+  status      ReviewStatus @default(PENDING)
+  reviewedAt  DateTime?    @map("reviewed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("testimonials")
 }

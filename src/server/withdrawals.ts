@@ -8,7 +8,8 @@ import { logSecurityEvent } from "./auth/security-log";
 import { notify } from "./notify/notifications";
 import { limitsFor, methodMode } from "./funding";
 import { getLivePrice } from "@/lib/market/price";
-import { FIAT_METHODS, NETWORK_FEES, WITHDRAWAL_FEES } from "@/config/funding";
+import { FIAT_METHODS } from "@/config/funding";
+import { getSettings, type Settings } from "./settings";
 import {
   Prisma,
   type PaymentMethod,
@@ -31,9 +32,15 @@ import {
  */
 const TX = { timeout: 20_000, maxWait: 10_000 } as const;
 
-export function withdrawalFee(method: PaymentMethod, assetCode: string, amount: Decimal, decimals: number): Decimal {
-  if (method === "CRYPTO") return new Decimal(NETWORK_FEES[assetCode]?.fee ?? "0");
-  const f = WITHDRAWAL_FEES[method];
+export function withdrawalFee(
+  fees: Settings["fees"],
+  method: PaymentMethod,
+  assetCode: string,
+  amount: Decimal,
+  decimals: number,
+): Decimal {
+  if (method === "CRYPTO") return new Decimal(fees.network[assetCode]?.fee ?? "0");
+  const f = fees.withdrawal[method];
   return new Decimal(f.flat).plus(amount.mul(f.bps).div(10_000)).toDecimalPlaces(decimals, Prisma.Decimal.ROUND_UP);
 }
 
@@ -122,7 +129,7 @@ export async function requestWithdrawal(input: {
       "INVALID",
     );
 
-  const fee = withdrawalFee(method, asset.code, amount, asset.decimals);
+  const fee = withdrawalFee((await getSettings()).fees, method, asset.code, amount, asset.decimals);
   const total = amount.plus(fee);
   const scheduled = input.scheduledFor && input.scheduledFor.getTime() > Date.now() ? input.scheduledFor : null;
 

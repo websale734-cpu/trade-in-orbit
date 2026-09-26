@@ -44,6 +44,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </Link>
             <AppNav links={links} />
             <div className="ml-auto flex items-center gap-2">
+              {user.role !== "USER" && (
+                <Link
+                  href="/admin"
+                  className="hidden rounded-full bg-down/15 px-3 py-1.5 text-xs font-bold tracking-wider text-down sm:inline-block"
+                >
+                  ADMIN
+                </Link>
+              )}
               <ThemeToggle />
               <Link
                 href="/notifications"

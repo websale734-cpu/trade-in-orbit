@@ -13,6 +13,7 @@ import {
 import { PortfolioSummary, type Holding } from "@/components/dashboard/portfolio-summary";
 import { Watchlist } from "@/components/dashboard/watchlist";
 import { CurrencySelect } from "@/components/dashboard/currency-select";
+import { ReviewCard } from "@/components/dashboard/review-card";
 import { PriceChart } from "@/components/charts/price-chart";
 import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
@@ -31,13 +32,17 @@ export default async function DashboardPage() {
   const { user } = await requireUser("/dashboard");
   await ensureDefaultAccount(user.id);
 
-  const [dict, rows, fx, watch, headlines, assets] = await Promise.all([
+  const [dict, rows, fx, watch, headlines, assets, review] = await Promise.all([
     getDictionary(),
     userHoldings(user.id),
     getFxRates(),
     db.watchlistItem.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
     getHeadlines(6),
     db.asset.findMany({ where: { enabled: true }, orderBy: { sortOrder: "asc" } }),
+    db.testimonial.findFirst({
+      where: { userId: user.id, status: { in: ["PENDING", "APPROVED"] } },
+      select: { status: true },
+    }),
   ]);
   const d = dict.app.dashboard;
 
@@ -155,6 +160,8 @@ export default async function DashboardPage() {
         )}
         <p className="mt-3 text-xs text-subtle">{d.newsNote}</p>
       </section>
+
+      <ReviewCard existing={(review?.status as "PENDING" | "APPROVED" | undefined) ?? null} />
     </div>
   );
 }

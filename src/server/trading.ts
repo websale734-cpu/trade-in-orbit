@@ -2,7 +2,12 @@ import "server-only";
 import { db } from "./db";
 import { Decimal, LedgerError, mapLedgerError, postEntry, systemLedgerAccount } from "./ledger";
 import { getLivePrice } from "@/lib/market/price";
-import { DEMO_STARTING_USD, MAX_SLIPPAGE_BPS, TRADE_FEES_BPS } from "@/config/funding";
+import { DEMO_STARTING_USD, MAX_SLIPPAGE_BPS } from "@/config/funding";
+import { getSettings } from "./settings";
+
+async function tradeFees() {
+  return (await getSettings()).fees.tradeBps;
+}
 import { Prisma, type Account, type OrderSide } from "@/generated/prisma/client";
 
 /**
@@ -28,9 +33,12 @@ const sys = (demo: boolean) => ({
   escrow: demo ? "DEMO_ORDER_ESCROW" : "ORDER_ESCROW",
 });
 
+/** An asset that can be traded now (admins can close a coin's trading pair). */
 async function assetInfo(code: string) {
-  const a = await db.asset.findFirst({ where: { code, enabled: true } });
-  if (!a) throw new LedgerError("Unsupported asset.", "NOT_FOUND");
+  const a = await db.asset.findFirst({
+    where: { code, enabled: true, ...(code === "USD" ? {} : { tradingEnabled: true }) },
+  });
+  if (!a) throw new LedgerError(`Trading in ${code} is currently unavailable.`, "NOT_FOUND");
   return a;
 }
 
@@ -109,7 +117,7 @@ export async function executeMarketOrder(input: MarketOrderInput) {
   const account = await tradingAccount(input.userId, input.accountId, input.demo);
   const price = await getLivePrice(asset.code);
   checkSlippage(input.side, input.expectedPrice, price);
-  const feeRate = bps(TRADE_FEES_BPS.instant);
+  const feeRate = bps((await tradeFees()).instant);
 
   const amount = new Decimal(input.amount);
   if (!amount.isFinite() || amount.lte(0))
@@ -202,7 +210,7 @@ export async function executeSwap(input: {
 
   const qty = new Decimal(input.quantity).toDecimalPlaces(fromA.decimals, ROUND_DOWN);
   if (qty.lte(0)) throw new LedgerError("Enter an amount greater than zero.", "INVALID_AMOUNT");
-  const fee = qty.mul(bps(TRADE_FEES_BPS.instant)).toDecimalPlaces(fromA.decimals, ROUND_UP);
+  const fee = qty.mul(bps((await tradeFees()).instant)).toDecimalPlaces(fromA.decimals, ROUND_UP);
   const received = qty.minus(fee).mul(rate).toDecimalPlaces(toA.decimals, ROUND_DOWN);
   if (received.lte(0)) throw new LedgerError("Amount is too small.", "INVALID_AMOUNT");
 
@@ -261,7 +269,7 @@ export async function placeLimitOrder(input: {
     throw new LedgerError("Enter a quantity and a limit price above zero.", "INVALID_AMOUNT");
 
   const notional = qty.mul(limit).toDecimalPlaces(usd.decimals, ROUND_UP);
-  const maxFee = notional.mul(bps(TRADE_FEES_BPS.maker)).toDecimalPlaces(usd.decimals, ROUND_UP);
+  const maxFee = notional.mul(bps((await tradeFees()).maker)).toDecimalPlaces(usd.decimals, ROUND_UP);
   const holdAsset = input.side === "BUY" ? "USD" : asset.code;
   const hold = input.side === "BUY" ? notional.plus(maxFee) : qty;
   const s = sys(input.demo);
@@ -364,7 +372,7 @@ async function settleLimit(orderId: string, fillPrice: Decimal) {
     const s = sys(order.demo);
     const usdDecimals = 2;
     const gross = order.quantity.mul(fillPrice).toDecimalPlaces(usdDecimals, ROUND_DOWN);
-    const fee = gross.mul(bps(TRADE_FEES_BPS.maker)).toDecimalPlaces(usdDecimals, ROUND_UP);
+    const fee = gross.mul(bps((await tradeFees()).maker)).toDecimalPlaces(usdDecimals, ROUND_UP);
     const uBase = await la(tx, order.accountId, order.baseAsset);
     const uUsd = await la(tx, order.accountId, "USD");
     const bBase = await systemLedgerAccount(tx, s.broker, order.baseAsset, true);

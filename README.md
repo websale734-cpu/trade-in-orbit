@@ -14,8 +14,8 @@ Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **Po
 | 2 | Registration, email + SMS codes, login, 2FA, KYC upload | ✅ Done |
 | 3 | Dashboard, accounts, live prices, watchlist (+ ledger core, notifications) | ✅ Done |
 | 4 | Deposits, trading, order book, withdrawals, ledger | ✅ Done |
-| 5 | Admin panel | ⏳ Next |
-| 6 | Rewards, referrals, staking, alerts, recurring buys, gift cards | |
+| 5 | Admin panel | ✅ Done |
+| 6 | Rewards, referrals, staking, alerts, recurring buys, gift cards | ⏳ Next |
 | 7 | Support, content pages, reports, API keys, multi-language | |
 | 8 | Security review, testing, mobile polish, deployment guide | |
 
@@ -43,6 +43,8 @@ npm run db:migrate              # apply migrations to the dev branch
 npm run db:seed                 # optional: demo users (dev branches only)
 npm run dev                     # http://localhost:3000
 ```
+
+**Staff accounts** (dev only): `admin@orbtrade.dev` (Super admin) and `support@orbtrade.dev` (Support), same password. The admin area requires 2FA: add the dev secret `JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP` to an authenticator app. The seed also puts a pending KYC submission in the review queue.
 
 **Demo accounts** (after `db:seed`, dev branches only): `demo@orbtrade.dev` (KYC not started) and `verified@orbtrade.dev` (KYC approved), each with Trading and Savings accounts, demo balances and a watchlist. Password for both: `Orbtrade-Demo-2026!`. Demo balances are posted through the ledger as `DEV_SEED` entries from a dev-only faucet account.
 
@@ -182,6 +184,26 @@ src/
 - **Limits by KYC level.** 24-hour deposit and withdrawal limits in USD value (`src/config/funding.ts`). Unverified users see a verification gate instead of the forms.
 - **Tests.** `tests/reset-test-user.ts` resets rate limits and open orders for repeatable end-to-end runs on dev branches.
 - Phase 4 screen copy is inline English for now; it moves into the i18n dictionaries in Phase 7.
+
+### Phase 5: admin panel (`/admin`)
+
+- **Role-based access.**
+  - SUPPORT: users and transactions.
+  - COMPLIANCE: adds KYC review, deposit and withdrawal queues, suspensions and the audit log.
+  - ADMIN: adds settings, coins, content and balance adjustments.
+  - SUPER_ADMIN: adds staff roles.
+
+  Staff must have 2FA enabled. Every page and Server Action checks its permission on the server (`src/server/admin/rbac.ts`), and the navigation only shows permitted sections.
+- **Audit log.** Every staff action is recorded (actor, IP, target, details) in `admin_audit_logs`. The table is append-only, enforced by a database trigger. KYC document views are logged too.
+- **KYC review.** Documents are decrypted on the fly, only for compliance staff, and served `no-store` / `nosniff`. Approving sets KYC level 1; rejecting requires a reason the customer sees. Staff can't review their own verification.
+- **Queues.** Deposits are confirmed only after funds arrive (credited through the ledger, idempotently) or failed with a reason. Withdrawals move review → approve → sent (payout reference required) → completed, or are rejected (funds returned). Staff can't approve their own withdrawal.
+- **Users.** Search, profile, balances, ledger history, security log, suspend/unsuspend (which signs the user out everywhere), role changes (super admin).
+- **Balance adjustments** are `ADJUSTMENT` journal entries with a mandatory reason and the admin's ID. Admins can't edit balances silently, and the database rejects overdrafts.
+- **Settings** (fees, KYC limits, rewards) are admin-editable, validated against strict schemas and effective within 15 s. The public fee table reads them live. **Coins & pairs**: enable/disable each coin and its trading pair.
+- **Content.** Countdown promotions, blog and academy articles (Markdown), FAQ (replaces the built-in FAQ once any entry exists) and testimonial moderation. Customers submit reviews from the dashboard; only approved reviews from real users are public.
+- **Overview.** Customers, 30-day trading volume, fee revenue, deposits and withdrawals, queue counts, and daily volume and sign-up charts.
+- **Resilience.** Database connection-acquisition failures (e.g. Neon waking from scale-to-zero) are retried once; they occur before any SQL is sent, so they're safe. There's also a branded error page.
+- **Moved to Phase 7:** support ticket inbox and live chat (built with the customer-facing support system).
 
 ### Deferred (tracked)
 

@@ -6,7 +6,8 @@ import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
 import { ensureDefaultAccount, listAccounts } from "@/server/ledger";
 import { limitsFor } from "@/server/funding";
-import { NETWORK_FEES, WITHDRAWAL_ARRIVAL, WITHDRAWAL_FEES } from "@/config/funding";
+import { WITHDRAWAL_ARRIVAL } from "@/config/funding";
+import { getSettings } from "@/server/settings";
 import { cn } from "@/lib/utils";
 import { sandboxAdvanceWithdrawal, sandboxRejectWithdrawal } from "../sandbox-actions";
 import { WithdrawForm } from "./withdraw-form";
@@ -33,11 +34,12 @@ export default async function WithdrawPage() {
     );
 
   await ensureDefaultAccount(user.id);
-  const [accounts, limits, withdrawals, addresses] = await Promise.all([
+  const [accounts, limits, withdrawals, addresses, settings] = await Promise.all([
     listAccounts(user.id),
     limitsFor(user),
     db.withdrawal.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 15 }),
     db.withdrawalAddress.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
+    getSettings(),
   ]);
   const devTools = process.env.NODE_ENV !== "production";
 
@@ -68,7 +70,7 @@ export default async function WithdrawPage() {
           address: a.address,
           confirmed: !!a.confirmedAt,
         }))}
-        fees={{ fiat: WITHDRAWAL_FEES, network: NETWORK_FEES }}
+        fees={{ fiat: settings.fees.withdrawal, network: settings.fees.network }}
         arrival={WITHDRAWAL_ARRIVAL}
         usesTotp={!!user.totpEnabledAt}
       />

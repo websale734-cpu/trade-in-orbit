@@ -13,6 +13,16 @@ import { env } from "./env";
  */
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
+/**
+ * Failures while *acquiring* a connection (e.g. Neon waking from scale-to-zero).
+ * These happen before any SQL reaches the database, so a retry can't apply a
+ * write twice. Errors after a query was sent are never retried.
+ */
+function isConnectError(err: unknown): boolean {
+  const text = `${err instanceof Error ? err.message : err} ${String((err as { cause?: unknown })?.cause ?? "")}`;
+  return /connection timeout|timeout exceeded when trying to connect|ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text);
+}
+
 function client(): PrismaClient {
   if (!globalForPrisma.prisma) {
     // Keep connections warm (new TLS connections to a remote database are slow)
@@ -23,11 +33,25 @@ function client(): PrismaClient {
       idleTimeoutMillis: 60_000,
       connectionTimeoutMillis: 15_000,
     });
-    globalForPrisma.prisma = new PrismaClient({
+    const base = new PrismaClient({
       adapter,
       // Default for interactive transactions: time to acquire a connection / total runtime.
       transactionOptions: { maxWait: 10_000, timeout: 20_000 },
     });
+    globalForPrisma.prisma = base.$extends({
+      query: {
+        async $allOperations({ args, query }) {
+          try {
+            return await query(args);
+          } catch (err) {
+            if (!isConnectError(err)) throw err;
+            console.warn("[db] connection failed, retrying once:", err instanceof Error ? err.message : err);
+            await new Promise((r) => setTimeout(r, 750));
+            return query(args);
+          }
+        },
+      },
+    }) as unknown as PrismaClient;
   }
   return globalForPrisma.prisma;
 }

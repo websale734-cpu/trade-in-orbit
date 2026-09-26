@@ -4,7 +4,8 @@ import { db } from "./db";
 import { Decimal, LedgerError, postEntry, systemLedgerAccount } from "./ledger";
 import { notify } from "./notify/notifications";
 import { getLivePrice } from "@/lib/market/price";
-import { DEPOSIT_FEES_BPS, FIAT_METHODS, KYC_LIMITS, NETWORK_FEES } from "@/config/funding";
+import { FIAT_METHODS, NETWORK_FEES } from "@/config/funding";
+import { getSettings } from "./settings";
 import { siteConfig } from "@/config/site";
 import { Prisma, type PaymentMethod, type User } from "@/generated/prisma/client";
 
@@ -34,8 +35,9 @@ export function methodMode(method: PaymentMethod): "live" | "sandbox" | "unavail
   return isProd ? "unavailable" : "sandbox";
 }
 
-export function depositFee(method: PaymentMethod, amount: Decimal, decimals: number): Decimal {
-  return amount.mul(DEPOSIT_FEES_BPS[method]).div(10_000).toDecimalPlaces(decimals, Prisma.Decimal.ROUND_UP);
+export async function depositFee(method: PaymentMethod, amount: Decimal, decimals: number): Promise<Decimal> {
+  const { fees } = await getSettings();
+  return amount.mul(fees.depositBps[method]).div(10_000).toDecimalPlaces(decimals, Prisma.Decimal.ROUND_UP);
 }
 
 /** USD value of a user's deposits or withdrawals in the last 24 h (for limits). */
@@ -53,7 +55,8 @@ async function usdVolume24h(userId: string, kind: "deposit" | "withdrawal"): Pro
 }
 
 export async function limitsFor(user: Pick<User, "id" | "kycLevel">) {
-  const limits = KYC_LIMITS[user.kycLevel] ?? KYC_LIMITS[0];
+  const all = (await getSettings()).limits;
+  const limits = all[String(user.kycLevel)] ?? all["0"] ?? { depositDaily: 0, withdrawDaily: 0, minDeposit: 0 };
   const [dep, wd] = await Promise.all([usdVolume24h(user.id, "deposit"), usdVolume24h(user.id, "withdrawal")]);
   return {
     ...limits,
@@ -104,7 +107,7 @@ export async function createDeposit(input: {
       "INVALID_AMOUNT",
     );
 
-  const fee = depositFee(method, amount, asset.decimals);
+  const fee = await depositFee(method, amount, asset.decimals);
   const deposit = await db.deposit.create({
     data: {
       userId: user.id,

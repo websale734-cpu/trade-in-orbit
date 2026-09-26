@@ -25,5 +25,6 @@ export const config = {
     "/trade/:path*",
     "/settings/:path*",
     "/onboarding/:path*",
+    "/admin/:path*",
   ],
 };

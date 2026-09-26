@@ -5,7 +5,8 @@ import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
 import { ensureDefaultAccount, listAccounts } from "@/server/ledger";
 import { limitsFor, methodMode } from "@/server/funding";
-import { ARRIVAL, DEPOSIT_FEES_BPS } from "@/config/funding";
+import { ARRIVAL } from "@/config/funding";
+import { getSettings } from "@/server/settings";
 import { trackedCoins } from "@/config/coins";
 import { cn } from "@/lib/utils";
 import { sandboxConfirmDeposit, sandboxFailDeposit } from "../sandbox-actions";
@@ -32,10 +33,11 @@ export default async function DepositPage({ searchParams }: PageProps<"/deposit"
     );
 
   await ensureDefaultAccount(user.id);
-  const [accounts, limits, deposits] = await Promise.all([
+  const [accounts, limits, deposits, settings] = await Promise.all([
     listAccounts(user.id),
     limitsFor(user),
     db.deposit.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 15 }),
+    getSettings(),
   ]);
   const devTools = process.env.NODE_ENV !== "production";
 
@@ -75,7 +77,7 @@ export default async function DepositPage({ searchParams }: PageProps<"/deposit"
         methods={(["BANK", "CARD", "MOBILE_MONEY", "CRYPTO"] as const).map((m) => ({
           id: m,
           mode: methodMode(m),
-          feeBps: DEPOSIT_FEES_BPS[m],
+          feeBps: settings.fees.depositBps[m],
           arrival: ARRIVAL[m],
         }))}
         minDeposit={limits.minDeposit}

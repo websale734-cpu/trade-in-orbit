@@ -194,6 +194,54 @@ export async function transferBetweenAccounts(input: {
   }
 }
 
+/**
+ * Manual balance adjustment by staff (e.g. correcting a provider error). It's a
+ * normal ADJUSTMENT journal entry against the ADMIN_ADJUSTMENTS system account,
+ * with a mandatory reason and the acting admin recorded. It can't overdraw the
+ * user (the database rejects it), and it's never a silent edit.
+ */
+export async function adjustBalance(input: {
+  actorId: string;
+  accountId: string;
+  assetCode: string;
+  /** Signed amount: positive credits the user, negative debits. */
+  amount: string;
+  reason: string;
+}) {
+  const reason = input.reason.trim();
+  if (reason.length < 10) throw new LedgerError("Give a clear reason (at least 10 characters).", "INVALID");
+  const [account, asset] = await Promise.all([
+    db.account.findFirst({ where: { id: input.accountId, type: { not: "DEMO" } } }),
+    db.asset.findUnique({ where: { code: input.assetCode } }),
+  ]);
+  if (!account || !asset) throw new LedgerError("Account or asset not found.", "NOT_FOUND");
+  const clean = input.amount.trim();
+  if (!/^-?\d+(\.\d+)?$/.test(clean)) throw new LedgerError("Enter a signed amount, e.g. 25 or -25.", "INVALID_AMOUNT");
+  const amount = new Decimal(clean);
+  if (amount.isZero() || amount.decimalPlaces() > asset.decimals)
+    throw new LedgerError(`Use a non-zero amount with at most ${asset.decimals} decimals.`, "INVALID_AMOUNT");
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const user = await ledgerAccountFor(tx, account.id, asset.code);
+      const pool = await systemLedgerAccount(tx, "ADMIN_ADJUSTMENTS", asset.code, true);
+      return postEntry(tx, {
+        type: "ADJUSTMENT",
+        description: `Balance adjustment: ${amount.gt(0) ? "+" : ""}${amount} ${asset.code}`,
+        userId: account.userId,
+        reason,
+        metadata: { actorId: input.actorId, accountId: account.id },
+        postings: [
+          { ledgerAccountId: user.id, assetCode: asset.code, amount },
+          { ledgerAccountId: pool.id, assetCode: asset.code, amount: amount.negated() },
+        ],
+      });
+    }, TX_OPTIONS);
+  } catch (err) {
+    mapLedgerError(err);
+  }
+}
+
 /** All non-zero balances for a user, per account and asset. */
 export async function userHoldings(userId: string) {
   const rows = await db.ledgerAccount.findMany({

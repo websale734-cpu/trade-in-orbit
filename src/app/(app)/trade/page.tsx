@@ -7,7 +7,7 @@ import { db } from "@/server/db";
 import { ensureDefaultAccount } from "@/server/ledger";
 import { ensureDemoAccount, matchOpenOrders } from "@/server/trading";
 import { trackedCoins } from "@/config/coins";
-import { TRADE_FEES_BPS } from "@/config/funding";
+import { getSettings } from "@/server/settings";
 import { cn } from "@/lib/utils";
 import { cancelLimitOrder } from "./actions";
 import { TradePanel } from "./trade-panel";
@@ -33,10 +33,12 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
         orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
       }));
 
-  const [balances, openOrders, fills] = await Promise.all([
+  const [balances, openOrders, fills, settings, tradable] = await Promise.all([
     db.ledgerAccount.findMany({ where: { accountId: { in: accounts.map((a) => a.id) } }, include: { asset: true } }),
     db.order.findMany({ where: { userId: user.id, demo, status: "OPEN" }, orderBy: { createdAt: "desc" } }),
     db.order.findMany({ where: { userId: user.id, demo, status: "FILLED" }, orderBy: { filledAt: "desc" }, take: 10 }),
+    getSettings(),
+    db.asset.findMany({ where: { enabled: true, tradingEnabled: true }, select: { code: true } }),
   ]);
 
   const accountData = accounts.map((a) => ({
@@ -46,7 +48,11 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
       balances.filter((b) => b.accountId === a.id).map((b) => [b.assetCode, b.balance.toString()]),
     ),
   }));
-  const coins = trackedCoins.map((c) => ({ code: c.symbol, name: c.name, chartable: !!c.binanceSymbol }));
+  // Only coins whose trading pair is open (admins can close pairs).
+  const open = new Set(tradable.map((a) => a.code));
+  const coins = trackedCoins
+    .filter((c) => open.has(c.symbol))
+    .map((c) => ({ code: c.symbol, name: c.name, chartable: !!c.binanceSymbol }));
 
   return (
     <div className="space-y-6">
@@ -98,7 +104,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
           initialTab={side as "buy" | "sell" | "swap" | "limit"}
           accounts={accountData}
           coins={coins}
-          fees={TRADE_FEES_BPS}
+          fees={settings.fees.tradeBps}
         />
         <OrderBook coins={coins.filter((c) => c.chartable).map((c) => c.code)} />
       </div>
@@ -174,7 +180,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
         </section>
       </div>
 
-      <Converter coins={coins.map((c) => c.code)} fees={TRADE_FEES_BPS} />
+      <Converter coins={coins.map((c) => c.code)} fees={settings.fees.tradeBps} />
     </div>
   );
 }

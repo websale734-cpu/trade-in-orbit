@@ -13,7 +13,7 @@
  * (users are upserted; funding is idempotent per user).
  */
 import { config } from "dotenv";
-import { randomBytes } from "node:crypto";
+import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { argon2id } from "hash-wasm";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../src/generated/prisma/client";
@@ -29,6 +29,23 @@ if (process.env.NODE_ENV === "production" || process.env.NEON_BRANCH === "produc
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
 
 const DEMO_PASSWORD = "Orbtrade-Demo-2026!";
+
+/** Dev-only authenticator secret for seeded staff (add it to any authenticator app). */
+const DEV_STAFF_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+
+/** Same AES-256-GCM layout as src/server/crypto.ts ([iv][tag][data]). */
+function encrypt(plain: Buffer): Buffer {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", Buffer.from(process.env.DATA_ENCRYPTION_KEY!, "base64"), iv);
+  const data = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), data]);
+}
+
+// A tiny valid PNG (1x1 px) standing in for document images in the dev KYC queue.
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 type Funding = Record<string, string>;
 const demoUsers: {
@@ -143,7 +160,56 @@ async function main() {
     }
     console.log(`  seeded ${u.email} (KYC ${u.kyc})${alreadyFunded ? " (already funded)" : " + demo balances"}`);
   }
+  // Staff accounts (2FA pre-enabled with the dev secret, since the admin area requires it).
+  const staff = [
+    { email: "admin@orbtrade.dev", name: "Dev Super Admin", role: "SUPER_ADMIN" as const, phone: "+447700900010" },
+    { email: "support@orbtrade.dev", name: "Dev Support Agent", role: "SUPPORT" as const, phone: "+447700900011" },
+  ];
+  for (const s of staff) {
+    const data = {
+      name: s.name,
+      role: s.role,
+      passwordHash,
+      emailVerifiedAt: now,
+      phone: s.phone,
+      phoneVerifiedAt: now,
+      twoFactorPromptedAt: now,
+      totpSecretEnc: encrypt(Buffer.from(DEV_STAFF_TOTP_SECRET)).toString("base64"),
+      totpEnabledAt: now,
+      termsAcceptedAt: now,
+      termsVersion: "dev-seed",
+    };
+    await db.user.upsert({ where: { email: s.email }, update: data, create: { email: s.email, ...data } });
+    console.log(`  seeded ${s.email} (${s.role}, 2FA on)`);
+  }
+
+  // A pending KYC submission so the admin review queue has something in it.
+  const demo = await db.user.findUniqueOrThrow({ where: { email: "demo@orbtrade.dev" } });
+  if (demo.kycStatus === "NONE") {
+    await db.$transaction([
+      db.kycSubmission.create({
+        data: {
+          userId: demo.id,
+          documentType: "PASSPORT",
+          documentCountry: "GB",
+          files: {
+            create: (["ID_FRONT", "SELFIE"] as const).map((kind) => ({
+              kind,
+              mimeType: "image/png",
+              sizeBytes: TINY_PNG.length,
+              sha256: createHash("sha256").update(TINY_PNG).digest("hex"),
+              dataEnc: new Uint8Array(encrypt(TINY_PNG)),
+            })),
+          },
+        },
+      }),
+      db.user.update({ where: { id: demo.id }, data: { kycStatus: "PENDING" } }),
+    ]);
+    console.log("  seeded a pending KYC submission for demo@orbtrade.dev");
+  }
+
   console.log(`\nDemo password for all seeded users: ${DEMO_PASSWORD}`);
+  console.log(`Staff authenticator secret (dev only): ${DEV_STAFF_TOTP_SECRET}`);
 }
 
 main()

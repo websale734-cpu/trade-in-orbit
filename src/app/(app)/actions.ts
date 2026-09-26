@@ -31,6 +31,32 @@ export async function setDisplayCurrency(fd: FormData): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Reviews (moderated before they appear publicly)
+// ---------------------------------------------------------------------------
+
+export async function submitReview(
+  _prev: { error?: string; message?: string } | undefined,
+  fd: FormData,
+): Promise<{ error?: string; message?: string }> {
+  const { user } = await requireUser();
+  const parsed = z
+    .object({
+      rating: z.coerce.number().int().min(1).max(5),
+      body: z.string().trim().min(20, "Tell us a bit more (at least 20 characters).").max(600),
+    })
+    .safeParse({ rating: fd.get("rating"), body: fd.get("body") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  if (await db.testimonial.findFirst({ where: { userId: user.id, status: { in: ["PENDING", "APPROVED"] } } }))
+    return { error: "You've already shared a review. Thank you!" };
+  // Public name is first name + last initial, so reviews stay personal but private.
+  const [first, ...rest] = user.name.split(/\s+/);
+  const displayName = rest.length ? `${first} ${rest[rest.length - 1][0]}.` : first;
+  await db.testimonial.create({ data: { userId: user.id, displayName, ...parsed.data } });
+  revalidatePath("/dashboard");
+  return { message: "Thanks! Your review will appear once our team has checked it." };
+}
+
+// ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 

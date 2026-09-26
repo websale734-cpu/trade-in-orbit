@@ -26,15 +26,16 @@ import { ButtonLink } from "@/components/ui/button";
 import { Container, Section } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
 import { getMarketSnapshot } from "@/lib/market/coingecko";
-import { getApprovedTestimonials, getLatestBlogPosts } from "@/server/content";
+import { getApprovedTestimonials, getFaq, getLatestBlogPosts } from "@/server/content";
 import { getDictionary } from "@/i18n/server";
 
 export default async function LandingPage() {
-  const [dict, snapshot, testimonials, posts] = await Promise.all([
+  const [dict, snapshot, testimonials, posts, faq] = await Promise.all([
     getDictionary(),
     getMarketSnapshot(),
     getApprovedTestimonials(),
     getLatestBlogPosts(),
+    getFaq(),
   ]);
 
   return (
@@ -73,7 +74,7 @@ export default async function LandingPage() {
       </Section>
 
       <Section id="faq" title={dict.faq.title}>
-        <Faq items={dict.faq.items} />
+        <Faq items={faq ?? dict.faq.items} />
       </Section>
 
       <Section id="blog" title={dict.blog.title} subtitle={dict.blog.subtitle}>
