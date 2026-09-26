@@ -79,7 +79,6 @@ All variables are documented in [`.env.example`](.env.example). Secrets are read
 | `NEXT_PUBLIC_APP_URL` | 1 | prod | Public base URL (metadata, email links, passkey origin) |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | 1 | no | Support address shown to users |
 | `NEXT_PUBLIC_SUPPORT_PHONE` | 7 | no | Support line shown in the help centre |
-| `DEV_FIXTURES` | 1 | no | `true` shows **development-only** sample content; ignored in production |
 | `COINGECKO_API_KEY` | 1 | no | CoinGecko key for higher rate limits |
 | `COINGECKO_API_PLAN` | 1 | no | `demo` (default) or `pro`, which picks the auth header |
 | `COINGECKO_API_BASE` | 1 | no | CoinGecko base URL (change for the Pro API) |
@@ -127,7 +126,7 @@ src/
 - **Theming.** Every colour is a CSS variable in `globals.css`, switched by `data-theme` on `<html>`. Dark is the default. An inline script applies the saved choice before first paint, so there's no flash.
 - **Multi-language.** Copy lives in typed dictionaries (`src/i18n/dictionaries`); the locale comes from the `orb_locale` cookie. To add a language, see `src/i18n/config.ts`; TypeScript flags missing keys. (Server-side validation messages are English for now; they move into dictionaries in Phase 7.)
 - **Live prices.** A CoinGecko snapshot (cached 60 s) plus a Binance public WebSocket for real-time ticks. If no data is available, the UI says so; it never shows made-up prices.
-- **Testimonials and seed content.** Only admin-approved real reviews are shown. Development samples are labelled `[DEV SAMPLE]` and appear only with `DEV_FIXTURES=true` outside production.
+- **Testimonials and content.** Only admin-approved reviews from real customers are shown; promotions, articles and FAQ come from the admin panel (the Phase 1 `DEV_FIXTURES` samples were removed in Phase 5).
 - **Fees.** Read from `src/config/fees.ts` until admins manage them in Phase 5. **Review before launch.**
 
 ### Phase 2: identity and security
