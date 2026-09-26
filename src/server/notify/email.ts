@@ -104,6 +104,24 @@ export function passwordResetEmail(to: string, code: string, minutes: number): E
   };
 }
 
+export function priceAlertEmail(to: string, asset: string, body: string): EmailMessage {
+  return {
+    to,
+    subject: `${asset} price alert`,
+    text: `${body}\n\nManage alerts: ${siteConfig.url}/alerts`,
+    html: layout(`${asset} price alert`, `${body}<br><br><a style="color:#a78bfa" href="${siteConfig.url}/alerts">Manage your alerts</a>`),
+  };
+}
+
+export function simpleNoticeEmail(to: string, subject: string, body: string, linkPath: string, linkLabel: string): EmailMessage {
+  return {
+    to,
+    subject,
+    text: `${body}\n\n${linkLabel}: ${siteConfig.url}${linkPath}`,
+    html: layout(subject, `${body}<br><br><a style="color:#a78bfa" href="${siteConfig.url}${linkPath}">${linkLabel}</a>`),
+  };
+}
+
 /** Code for a sensitive action (withdrawal, new withdrawal address). */
 export function confirmActionEmail(to: string, code: string, minutes: number, action: string): EmailMessage {
   return {

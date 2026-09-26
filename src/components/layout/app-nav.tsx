@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeftRight, CandlestickChart, Home, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowLeftRight, CandlestickChart, History, Home, LayoutGrid, ShieldCheck, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ICONS = { home: Home, wallet: Wallet, chart: CandlestickChart, trade: ArrowLeftRight, shield: ShieldCheck };
+const ICONS = { home: Home, wallet: Wallet, chart: CandlestickChart, trade: ArrowLeftRight, shield: ShieldCheck, history: History, more: LayoutGrid };
 type NavLink = { href: string; label: string; icon: keyof typeof ICONS };
 
 function isActive(pathname: string, href: string) {

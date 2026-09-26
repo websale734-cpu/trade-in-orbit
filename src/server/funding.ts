@@ -6,6 +6,7 @@ import { notify } from "./notify/notifications";
 import { getLivePrice } from "@/lib/market/price";
 import { FIAT_METHODS, NETWORK_FEES } from "@/config/funding";
 import { getSettings } from "./settings";
+import { maybeAwardReferral } from "./rewards";
 import { siteConfig } from "@/config/site";
 import { Prisma, type PaymentMethod, type User } from "@/generated/prisma/client";
 
@@ -164,6 +165,8 @@ export async function completeDeposit(depositId: string, providerRef?: string) {
     return d;
   }, TX);
   if (result) {
+    // A first qualifying deposit may unlock referral bonuses (idempotent).
+    await maybeAwardReferral(result.userId).catch((err) => console.error("[referral]", err));
     await notify(result.userId, {
       type: "ACCOUNT",
       title: "Deposit received",

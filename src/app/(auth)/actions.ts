@@ -14,6 +14,7 @@ import { consumeRecoveryCode, verifyAndConsumeTotp } from "@/server/auth/totp";
 import { logSecurityEvent } from "@/server/auth/security-log";
 import { postAuthDestination } from "@/server/auth/dal";
 import { passwordChangedEmail, sendEmail } from "@/server/notify/email";
+import { attachReferrer, REFERRAL_COOKIE } from "@/server/rewards";
 import { passwordPolicyError } from "@/lib/password-strength";
 import type { FormState } from "@/components/ui/form";
 
@@ -82,6 +83,10 @@ export async function register(_prev: FormState | undefined, fd: FormData): Prom
   });
 
   await logSecurityEvent("REGISTERED", user.id);
+  // Credit the referrer whose link brought this customer (bonus is paid after a qualifying deposit).
+  const jar = await cookies();
+  await attachReferrer(user.id, jar.get(REFERRAL_COOKIE)?.value).catch(() => {});
+  jar.delete(REFERRAL_COOKIE);
   await createSession(user.id);
   // A failed send isn't fatal: the verification page offers "Resend code".
   await sendCode(user.id, "EMAIL_VERIFY", email).catch((err) => console.error("[register] email code failed:", err));

@@ -331,6 +331,8 @@ const en = {
       security: "Security",
       logout: "Log out",
       home: "Home",
+      history: "History",
+      more: "More",
     },
     dashboard: {
       welcome: "Welcome, {name}",
@@ -392,6 +394,7 @@ const en = {
         FEE: "Fee",
         ADJUSTMENT: "Adjustment",
         DEV_SEED: "Development funding",
+        REWARD: "Reward",
       },
     },
     markets: {

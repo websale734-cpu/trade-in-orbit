@@ -7,7 +7,7 @@ import type { EntryType, Prisma } from "@/generated/prisma/client";
 
 export const metadata = { title: "Transactions" };
 
-const TYPES: EntryType[] = ["TRANSFER", "DEPOSIT", "WITHDRAWAL", "TRADE", "FEE", "ADJUSTMENT", "DEV_SEED"];
+const TYPES: EntryType[] = ["TRANSFER", "DEPOSIT", "WITHDRAWAL", "TRADE", "FEE", "ADJUSTMENT", "REWARD", "DEV_SEED"];
 const PAGE = 50;
 
 /** The full ledger: every journal entry with its postings, filterable by type and customer. */

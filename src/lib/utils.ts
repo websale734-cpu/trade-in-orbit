@@ -18,6 +18,11 @@ export function formatUsd(value: number): string {
   }).format(value);
 }
 
+/** Format a USD amount of money (not a price) with exactly 2 decimals, e.g. $1,250.00. */
+export function formatMoney(value: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
 /** Format a percentage change with an explicit sign, e.g. +2.41% / -0.87%. */
 export function formatPct(value: number): string {
   const sign = value > 0 ? "+" : "";

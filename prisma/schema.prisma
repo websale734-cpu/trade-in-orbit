@@ -69,6 +69,11 @@ model User {
   locale          String   @default("en")
   /// ISO 4217 code (lower-case) for showing balances in local currency.
   currency        String   @default("usd")
+  /// Short code used in the user's referral link (/r/CODE).
+  referralCode    String?  @unique @map("referral_code")
+  referredById    String?  @map("referred_by_id")
+  referredBy      User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals       User[]   @relation("Referrals")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -91,6 +96,14 @@ model User {
   withdrawals       Withdrawal[]
   withdrawalAddrs   WithdrawalAddress[]
   auditLogs         AdminAuditLog[]
+  priceAlerts       PriceAlert[]
+  recurringBuys     RecurringBuy[]
+  rewardsEarned     ReferralReward[]   @relation("RewardReferrer")
+  rewardsReceived   ReferralReward[]   @relation("RewardReferee")
+  supportTickets    SupportTicket[]    @relation("TicketCustomer")
+  assignedTickets   SupportTicket[]    @relation("TicketAssignee")
+  supportMessages   SupportMessage[]
+  apiKeys           ApiKey[]
   testimonials      Testimonial[]
 
   @@map("users")
@@ -360,6 +373,7 @@ enum EntryType {
   TRADE
   FEE
   ADJUSTMENT
+  REWARD
   DEV_SEED
 }
 
@@ -721,4 +735,202 @@ model Testimonial {
 
   @@index([status, createdAt(sort: Desc)])
   @@map("testimonials")
+}
+
+// ===========================================================================
+// Rewards, alerts and recurring buys (Phase 6)
+// ===========================================================================
+
+/// One click on a referral link (for the affiliate dashboard). IP is hashed, never stored raw.
+model ReferralClick {
+  id        String   @id @default(cuid())
+  code      String
+  ipHash    String?  @map("ip_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([code, createdAt])
+  @@map("referral_clicks")
+}
+
+/// Bonus paid once per referred customer, when their first qualifying deposit completes.
+model ReferralReward {
+  id             String   @id @default(cuid())
+  referrerId     String   @map("referrer_id")
+  referrer       User     @relation("RewardReferrer", fields: [referrerId], references: [id], onDelete: Restrict)
+  refereeId      String   @unique @map("referee_id")
+  referee        User     @relation("RewardReferee", fields: [refereeId], references: [id], onDelete: Restrict)
+  referrerAmount Decimal  @map("referrer_amount") @db.Decimal(38, 18)
+  refereeAmount  Decimal  @map("referee_amount") @db.Decimal(38, 18)
+  entryId        String   @map("entry_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([referrerId])
+  @@map("referral_rewards")
+}
+
+enum AlertDirection {
+  ABOVE
+  BELOW
+}
+
+enum AlertStatus {
+  ACTIVE
+  TRIGGERED
+  CANCELLED
+}
+
+model PriceAlert {
+  id          String         @id @default(cuid())
+  userId      String         @map("user_id")
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetCode   String         @map("asset_code")
+  direction   AlertDirection
+  targetPrice Decimal        @map("target_price") @db.Decimal(38, 18)
+  notifyEmail Boolean        @default(true) @map("notify_email")
+  status      AlertStatus    @default(ACTIVE)
+  triggeredAt DateTime?      @map("triggered_at")
+  triggeredPrice Decimal?    @map("triggered_price") @db.Decimal(38, 18)
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  @@index([status, assetCode])
+  @@index([userId])
+  @@map("price_alerts")
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ScheduleStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+model RecurringBuy {
+  id           String         @id @default(cuid())
+  userId       String         @map("user_id")
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId    String         @map("account_id")
+  assetCode    String         @map("asset_code")
+  amountUsd    Decimal        @map("amount_usd") @db.Decimal(38, 18)
+  frequency    Frequency
+  nextRunAt    DateTime       @map("next_run_at")
+  status       ScheduleStatus @default(ACTIVE)
+  lastRunAt    DateTime?      @map("last_run_at")
+  lastResult   String?        @map("last_result")
+  failureCount Int            @default(0) @map("failure_count")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@index([status, nextRunAt])
+  @@index([userId])
+  @@map("recurring_buys")
+}
+
+// ===========================================================================
+// Support, API keys, listing requests, statements (Phase 7)
+// ===========================================================================
+
+enum TicketChannel {
+  TICKET
+  CHAT
+}
+
+enum TicketStatus {
+  OPEN
+  AWAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id            String         @id @default(cuid())
+  userId        String         @map("user_id")
+  user          User           @relation("TicketCustomer", fields: [userId], references: [id], onDelete: Cascade)
+  channel       TicketChannel  @default(TICKET)
+  subject       String
+  category      String
+  status        TicketStatus   @default(OPEN)
+  assignedToId  String?        @map("assigned_to_id")
+  assignedTo    User?          @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lastMessageAt DateTime       @default(now()) @map("last_message_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  messages      SupportMessage[]
+
+  @@index([status, lastMessageAt(sort: Desc)])
+  @@index([userId, lastMessageAt(sort: Desc)])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id        String        @id @default(cuid())
+  ticketId  String        @map("ticket_id")
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String        @map("author_id")
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  fromStaff Boolean       @default(false) @map("from_staff")
+  body      String
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}
+
+enum ApiPermission {
+  READ
+  TRADE
+}
+
+/// API keys for advanced traders. Only an HMAC of the secret is stored.
+model ApiKey {
+  id         String        @id @default(cuid())
+  userId     String        @map("user_id")
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  /// Public identifier shown in the UI (orb_<prefix>...).
+  prefix     String        @unique
+  secretHash String        @map("secret_hash")
+  permission ApiPermission
+  lastUsedAt DateTime?     @map("last_used_at")
+  revokedAt  DateTime?     @map("revoked_at")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+enum RequestStatus {
+  NEW
+  REVIEWING
+  ACCEPTED
+  DECLINED
+}
+
+model ListingRequest {
+  id          String        @id @default(cuid())
+  projectName String        @map("project_name")
+  symbol      String
+  website     String
+  network     String?
+  contract    String?
+  email       String
+  message     String
+  userId      String?       @map("user_id")
+  status      RequestStatus @default(NEW)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("listing_requests")
+}
+
+/// Records that a monthly statement notice was sent (prevents duplicates).
+model StatementDispatch {
+  userId    String   @map("user_id")
+  month     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, month])
+  @@map("statement_dispatches")
 }

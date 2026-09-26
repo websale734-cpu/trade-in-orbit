@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
 import { inputClasses } from "@/components/ui/form";
 import { useMarket } from "@/components/market/market-provider";
@@ -12,7 +13,7 @@ export function Converter({
   fees,
 }: {
   coins: string[];
-  fees: { instant: number; maker: number; taker: number };
+  fees: { instant: number; maker: number; taker: number; discountPct?: number };
 }) {
   const { tickers } = useMarket();
   const [amount, setAmount] = useState("1");
@@ -97,7 +98,14 @@ export function Converter({
             ))}
           </tbody>
         </table>
-        <p className="mt-3 text-xs text-muted">Higher loyalty tiers get lower trading fees (coming with Rewards).</p>
+        <p className="mt-3 text-xs text-muted">
+          {fees.discountPct
+            ? `Includes your ${fees.discountPct}% loyalty-tier discount.`
+            : "Higher loyalty tiers get lower trading fees."}{" "}
+          <Link href="/rewards" className="text-accent hover:underline">
+            See tiers
+          </Link>
+        </p>
       </section>
     </div>
   );

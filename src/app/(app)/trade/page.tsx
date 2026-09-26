@@ -5,9 +5,8 @@ import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
 import { ensureDefaultAccount } from "@/server/ledger";
-import { ensureDemoAccount, matchOpenOrders } from "@/server/trading";
+import { ensureDemoAccount, matchOpenOrders, userTradeFees } from "@/server/trading";
 import { trackedCoins } from "@/config/coins";
-import { getSettings } from "@/server/settings";
 import { cn } from "@/lib/utils";
 import { cancelLimitOrder } from "./actions";
 import { TradePanel } from "./trade-panel";
@@ -33,11 +32,11 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
         orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
       }));
 
-  const [balances, openOrders, fills, settings, tradable] = await Promise.all([
+  const [balances, openOrders, fills, fees, tradable] = await Promise.all([
     db.ledgerAccount.findMany({ where: { accountId: { in: accounts.map((a) => a.id) } }, include: { asset: true } }),
     db.order.findMany({ where: { userId: user.id, demo, status: "OPEN" }, orderBy: { createdAt: "desc" } }),
     db.order.findMany({ where: { userId: user.id, demo, status: "FILLED" }, orderBy: { filledAt: "desc" }, take: 10 }),
-    getSettings(),
+    userTradeFees(user.id, demo),
     db.asset.findMany({ where: { enabled: true, tradingEnabled: true }, select: { code: true } }),
   ]);
 
@@ -104,7 +103,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
           initialTab={side as "buy" | "sell" | "swap" | "limit"}
           accounts={accountData}
           coins={coins}
-          fees={settings.fees.tradeBps}
+          fees={fees}
         />
         <OrderBook coins={coins.filter((c) => c.chartable).map((c) => c.code)} />
       </div>
@@ -180,7 +179,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
         </section>
       </div>
 
-      <Converter coins={coins.map((c) => c.code)} fees={settings.fees.tradeBps} />
+      <Converter coins={coins.map((c) => c.code)} fees={fees} />
     </div>
   );
 }

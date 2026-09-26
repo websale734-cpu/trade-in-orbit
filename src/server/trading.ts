@@ -4,11 +4,22 @@ import { Decimal, LedgerError, mapLedgerError, postEntry, systemLedgerAccount } 
 import { getLivePrice } from "@/lib/market/price";
 import { DEMO_STARTING_USD, MAX_SLIPPAGE_BPS } from "@/config/funding";
 import { getSettings } from "./settings";
-
-async function tradeFees() {
-  return (await getSettings()).fees.tradeBps;
-}
+import { feeDiscountPct } from "./rewards";
 import { Prisma, type Account, type OrderSide } from "@/generated/prisma/client";
+
+/**
+ * Trading fees in basis points for this user, after their loyalty-tier
+ * discount. Demo trades use the undiscounted schedule.
+ */
+async function tradeFees(userId: string, demo: boolean) {
+  const base = (await getSettings()).fees.tradeBps;
+  const pct = demo ? 0 : await feeDiscountPct(userId);
+  const apply = (v: number) => Math.round(v * (1 - pct / 100));
+  return { instant: apply(base.instant), maker: apply(base.maker), taker: apply(base.taker), discountPct: pct };
+}
+
+/** Fee schedule the Trade page shows (same numbers the engine charges). */
+export const userTradeFees = tradeFees;
 
 /**
  * Brokerage trading engine.
@@ -117,7 +128,7 @@ export async function executeMarketOrder(input: MarketOrderInput) {
   const account = await tradingAccount(input.userId, input.accountId, input.demo);
   const price = await getLivePrice(asset.code);
   checkSlippage(input.side, input.expectedPrice, price);
-  const feeRate = bps((await tradeFees()).instant);
+  const feeRate = bps((await tradeFees(input.userId, input.demo)).instant);
 
   const amount = new Decimal(input.amount);
   if (!amount.isFinite() || amount.lte(0))
@@ -210,7 +221,7 @@ export async function executeSwap(input: {
 
   const qty = new Decimal(input.quantity).toDecimalPlaces(fromA.decimals, ROUND_DOWN);
   if (qty.lte(0)) throw new LedgerError("Enter an amount greater than zero.", "INVALID_AMOUNT");
-  const fee = qty.mul(bps((await tradeFees()).instant)).toDecimalPlaces(fromA.decimals, ROUND_UP);
+  const fee = qty.mul(bps((await tradeFees(input.userId, input.demo)).instant)).toDecimalPlaces(fromA.decimals, ROUND_UP);
   const received = qty.minus(fee).mul(rate).toDecimalPlaces(toA.decimals, ROUND_DOWN);
   if (received.lte(0)) throw new LedgerError("Amount is too small.", "INVALID_AMOUNT");
 
@@ -227,7 +238,15 @@ export async function executeSwap(input: {
         description: `Swapped ${qty} ${fromA.code} for ${received} ${toA.code}`,
         userId: input.userId,
         idempotencyKey: `swap:${input.userId}:${input.idempotencyKey}`,
-        metadata: { swap: true, rate: rate.toString(), fee: fee.toString(), demo: input.demo },
+        // USD prices are kept for the tax report (value of each leg at execution).
+        metadata: {
+          swap: true,
+          rate: rate.toString(),
+          fee: fee.toString(),
+          priceFromUsd: pFrom.toString(),
+          priceToUsd: pTo.toString(),
+          demo: input.demo,
+        },
         postings: [
           { ledgerAccountId: uFrom.id, assetCode: fromA.code, amount: qty.negated() },
           { ledgerAccountId: bFrom.id, assetCode: fromA.code, amount: qty.minus(fee) },
@@ -269,7 +288,7 @@ export async function placeLimitOrder(input: {
     throw new LedgerError("Enter a quantity and a limit price above zero.", "INVALID_AMOUNT");
 
   const notional = qty.mul(limit).toDecimalPlaces(usd.decimals, ROUND_UP);
-  const maxFee = notional.mul(bps((await tradeFees()).maker)).toDecimalPlaces(usd.decimals, ROUND_UP);
+  const maxFee = notional.mul(bps((await tradeFees(input.userId, input.demo)).maker)).toDecimalPlaces(usd.decimals, ROUND_UP);
   const holdAsset = input.side === "BUY" ? "USD" : asset.code;
   const hold = input.side === "BUY" ? notional.plus(maxFee) : qty;
   const s = sys(input.demo);
@@ -372,7 +391,10 @@ async function settleLimit(orderId: string, fillPrice: Decimal) {
     const s = sys(order.demo);
     const usdDecimals = 2;
     const gross = order.quantity.mul(fillPrice).toDecimalPlaces(usdDecimals, ROUND_DOWN);
-    const fee = gross.mul(bps((await tradeFees()).maker)).toDecimalPlaces(usdDecimals, ROUND_UP);
+    // Never charge more than was reserved at placement (the user's tier may have changed since).
+    const computedFee = gross.mul(bps((await tradeFees(order.userId, order.demo)).maker)).toDecimalPlaces(usdDecimals, ROUND_UP);
+    const reservedFee = order.side === "BUY" ? order.escrow!.minus(gross) : computedFee;
+    const fee = Decimal.min(computedFee, Decimal.max(reservedFee, new Decimal(0)));
     const uBase = await la(tx, order.accountId, order.baseAsset);
     const uUsd = await la(tx, order.accountId, "USD");
     const bBase = await systemLedgerAccount(tx, s.broker, order.baseAsset, true);

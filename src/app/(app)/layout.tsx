@@ -31,8 +31,13 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/accounts", label: n.accounts, icon: "wallet" as const },
     { href: "/markets", label: n.markets, icon: "chart" as const },
     { href: "/trade", label: n.trade, icon: "trade" as const },
-    { href: "/settings/security", label: n.security, icon: "shield" as const },
+    { href: "/history", label: n.history, icon: "history" as const },
+    { href: "/more", label: n.more, icon: "more" as const },
   ];
+  // Phones get five tabs; Accounts lives in the More hub there.
+  const mobileLinks = links
+    .filter((l) => l.href !== "/accounts")
+    .map((l) => (l.href === "/dashboard" ? { ...l, label: n.home } : l));
 
   return (
     <MarketProvider initial={snapshot}>
@@ -85,7 +90,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-10">{children}</main>
-        <MobileTabBar links={links.map((l) => (l.href === "/dashboard" ? { ...l, label: n.home } : l))} />
+        <MobileTabBar links={mobileLinks} />
       </div>
     </MarketProvider>
   );
