@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 /**
- * Baseline security headers for every response.
- * A full Content-Security-Policy (with nonces for the inline theme script) is
- * added in Phase 8 once all third-party origins (Stripe, Twilio, etc.) are known.
+ * Baseline security headers for every response. Pages get a per-request,
+ * nonce-based Content-Security-Policy from src/proxy.ts; API responses (JSON
+ * only) get a locked-down static one below.
  */
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
@@ -11,6 +11,8 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=(self)" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "X-DNS-Prefetch-Control", value: "off" },
 ];
 
 const nextConfig: NextConfig = {
@@ -28,7 +30,10 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      { source: "/api/:path*", headers: [{ key: "Content-Security-Policy", value: "default-src 'none'; frame-ancestors 'none'" }] },
+    ];
   },
 };
 

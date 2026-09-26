@@ -4,6 +4,7 @@ import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { MarketProvider } from "@/components/market/market-provider";
 import { AppNav, MobileTabBar } from "@/components/layout/app-nav";
+import { ChatWidget } from "@/components/support/chat-widget";
 import { requireUser } from "@/server/auth/dal";
 import { unreadCount } from "@/server/notify/notifications";
 import { getMarketSnapshot } from "@/lib/market/coingecko";
@@ -91,6 +92,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-10">{children}</main>
         <MobileTabBar links={mobileLinks} />
+        <ChatWidget />
       </div>
     </MarketProvider>
   );

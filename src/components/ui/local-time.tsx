@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useNonce } from "@/components/security/nonce";
 
 const OPTIONS: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" };
 
@@ -14,12 +15,14 @@ const OPTIONS: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "s
  */
 export function LocalTime({ date }: { date: string }) {
   const id = useId();
+  const nonce = useNonce();
   return (
     <>
       <time id={id} dateTime={date} suppressHydrationWarning>
         {new Date(date).toLocaleString(undefined, OPTIONS)}
       </time>
       <script
+        nonce={nonce}
         type={typeof window === "undefined" ? "text/javascript" : "text/plain"}
         suppressHydrationWarning
         dangerouslySetInnerHTML={{

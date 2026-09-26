@@ -8,7 +8,6 @@ export async function SiteFooter() {
   const f = dict.footer;
   const l = f.links;
 
-  // Links to pages built in later phases point to anchors or placeholders for now.
   const columns = [
     {
       title: f.product,
@@ -16,14 +15,13 @@ export async function SiteFooter() {
         { href: "/#markets", label: l.markets },
         { href: "/#fees", label: l.fees },
         { href: "/#security", label: l.security },
-        { href: "/learn", label: l.learn },
       ],
     },
     {
       title: f.company,
       links: [
         { href: "/about", label: l.about },
-        { href: "/blog", label: l.blog },
+        { href: "/contact", label: l.contact },
         { href: "/careers", label: l.careers },
       ],
     },
@@ -31,7 +29,7 @@ export async function SiteFooter() {
       title: f.support,
       links: [
         { href: "/help", label: l.help },
-        { href: "/contact", label: l.contact },
+        { href: "/faq", label: "FAQ" },
         { href: "/listing-request", label: l.listing },
       ],
     },

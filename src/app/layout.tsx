@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { headers } from "next/headers";
 import { ThemeScript } from "@/components/theme/theme-script";
+import { NonceProvider } from "@/components/security/nonce";
 import { I18nProvider } from "@/i18n/client";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { siteConfig } from "@/config/site";
@@ -32,17 +34,20 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const locale = await getLocale();
   const dict = await getDictionary(locale);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     // Dark is the default theme; ThemeScript swaps to the saved preference before paint.
     <html lang={locale} data-theme="dark" className={`${inter.variable} h-full`} suppressHydrationWarning>
       <head>
-        <ThemeScript />
+        <ThemeScript nonce={nonce} />
       </head>
       <body className="flex min-h-full flex-col">
-        <I18nProvider locale={locale} dict={dict}>
-          {children}
-        </I18nProvider>
+        <NonceProvider nonce={nonce}>
+          <I18nProvider locale={locale} dict={dict}>
+            {children}
+          </I18nProvider>
+        </NonceProvider>
       </body>
     </html>
   );

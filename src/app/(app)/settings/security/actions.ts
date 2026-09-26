@@ -7,6 +7,10 @@ import { requireUser } from "@/server/auth/dal";
 import { destroyCurrentSession, revokeAllSessions } from "@/server/auth/session";
 import { logSecurityEvent } from "@/server/auth/security-log";
 import { disableTotp, verifyAndConsumeTotp } from "@/server/auth/totp";
+import { hashPassword, verifyPassword } from "@/server/auth/password";
+import { formatRetry, rateLimit } from "@/server/rate-limit";
+import { passwordChangedEmail, sendEmail } from "@/server/notify/email";
+import { passwordPolicyError } from "@/lib/password-strength";
 import type { FormState } from "@/components/ui/form";
 
 export async function logoutOtherDevices(): Promise<void> {
@@ -45,6 +49,33 @@ export async function turnOffTwoFactor(_prev: FormState | undefined, fd: FormDat
   await logSecurityEvent("TWO_FACTOR_DISABLED", user.id);
   revalidatePath("/settings/security");
   return { message: "Two-factor authentication is off." };
+}
+
+/**
+ * Change password: requires the current password (and a 2FA code when 2FA is
+ * on), then signs out every other device and sends a notice email.
+ */
+export async function changePassword(_prev: FormState | undefined, fd: FormData): Promise<FormState> {
+  const session = await requireUser();
+  const { user } = session;
+  const current = String(fd.get("currentPassword") ?? "");
+  const next = String(fd.get("newPassword") ?? "");
+
+  const rl = await rateLimit(`pwchange:${user.id}`, 5, 900);
+  if (!rl.ok) return { error: `Too many attempts. Try again in ${formatRetry(rl.retryAfterSeconds)}.` };
+  if (!(await verifyPassword(user.passwordHash, current))) return { fieldErrors: { currentPassword: "Incorrect password." } };
+  if (user.totpSecretEnc && !(await verifyAndConsumeTotp(user.id, user.totpSecretEnc, String(fd.get("code") ?? ""))))
+    return { fieldErrors: { code: "Incorrect 2FA code." } };
+  const policy = passwordPolicyError(next, user.email);
+  if (policy) return { fieldErrors: { newPassword: policy } };
+  if (current === next) return { fieldErrors: { newPassword: "Choose a password you haven't just used." } };
+
+  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(next) } });
+  const count = await revokeAllSessions(user.id, session.id);
+  await logSecurityEvent("PASSWORD_CHANGED", user.id, { otherSessionsRevoked: count });
+  await sendEmail(passwordChangedEmail(user.email)).catch((err) => console.error("[password] notice failed:", err));
+  revalidatePath("/settings/security");
+  return { message: "Password changed. Other devices have been signed out." };
 }
 
 /** Back to the Security page after saving recovery codes. */

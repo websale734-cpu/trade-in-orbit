@@ -69,15 +69,16 @@ export async function userEntries(userId: string, where: { from?: Date; to?: Dat
   return entries.map((e) => {
     const mine = e.postings.filter((p) => p.ledgerAccount.account?.userId === userId && p.ledgerAccount.account.type !== "DEMO");
     const net = new Map<string, number>();
-    for (const p of mine) net.set(p.assetCode, (net.get(p.assetCode) ?? 0) + Number(p.amount));
+    // Internal transfers net to zero across the user's accounts; report the amount moved instead.
+    for (const p of mine)
+      if (e.type !== "TRANSFER" || Number(p.amount) > 0) net.set(p.assetCode, (net.get(p.assetCode) ?? 0) + Number(p.amount));
     return {
       id: e.id,
       type: e.type,
       description: e.description,
       createdAt: e.createdAt,
       metadata: e.metadata as Record<string, unknown> | null,
-      // Internal transfers net to zero overall; show the moved amount instead.
-      changes: [...net.entries()].filter(([, v]) => v !== 0 || e.type === "TRANSFER").map(([asset, amount]) => ({ asset, amount })),
+      changes: [...net.entries()].filter(([, v]) => v !== 0).map(([asset, amount]) => ({ asset, amount })),
       accounts: [...new Set(mine.map((p) => p.ledgerAccount.account!.name))],
     };
   });
@@ -166,7 +167,7 @@ export async function statementPdf(user: Pick<User, "id" | "name" | "email">, mo
     { text: "Amount", x: W - M, bold: true, right: true },
   ]);
   for (const e of [...entries].reverse()) {
-    const amounts = e.changes.map((c) => `${c.amount > 0 ? "+" : ""}${fmtQty(c.amount)} ${c.asset}`).join("  ");
+    const amounts = e.changes.map((c) => `${c.amount > 0 && e.type !== "TRANSFER" ? "+" : ""}${fmtQty(c.amount)} ${c.asset}`).join("  ");
     line(pdf, [
       { text: e.createdAt.toISOString().slice(0, 16).replace("T", " "), x: M },
       { text: e.type, x: 120 },

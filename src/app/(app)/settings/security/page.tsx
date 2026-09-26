@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CheckCircle2, Globe, Laptop, ShieldCheck, ShieldOff, Smartphone } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Globe, KeyRound, Laptop, ShieldCheck, ShieldOff, Smartphone } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { TwoFactorSetup } from "@/app/(onboarding)/onboarding/two-factor/two-factor-setup";
 import { finishSecuritySetup, logoutEverywhere, logoutOtherDevices, revokeSession } from "./actions";
 import { DisableTwoFactorForm } from "./disable-2fa-form";
+import { ChangePasswordForm } from "./change-password-form";
 
 export const metadata: Metadata = { title: "Security" };
 
@@ -76,6 +77,14 @@ export default async function SecurityPage({ searchParams }: PageProps<"/setting
             <DisableTwoFactorForm label={s.disable} />
           </div>
         )}
+      </section>
+
+      {/* Password */}
+      <section className="glass rounded-[var(--radius-card)] p-6">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <KeyRound className="h-4 w-4 text-accent" /> Change password
+        </h2>
+        <ChangePasswordForm needsCode={!!user.totpEnabledAt} />
       </section>
 
       {/* Active sessions */}

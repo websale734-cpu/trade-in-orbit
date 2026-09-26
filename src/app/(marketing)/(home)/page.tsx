@@ -18,7 +18,6 @@ import { HowItWorks } from "@/components/landing/how-it-works";
 import { FeeTable } from "@/components/landing/fee-table";
 import { Testimonials } from "@/components/landing/testimonials";
 import { Faq } from "@/components/landing/faq";
-import { BlogPreview } from "@/components/landing/blog-preview";
 import { MarketProvider } from "@/components/market/market-provider";
 import { PriceTicker } from "@/components/market/price-ticker";
 import { MarketsSection } from "@/components/market/markets-section";
@@ -26,15 +25,14 @@ import { ButtonLink } from "@/components/ui/button";
 import { Container, Section } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
 import { getMarketSnapshot } from "@/lib/market/coingecko";
-import { getApprovedTestimonials, getFaq, getLatestBlogPosts } from "@/server/content";
+import { getApprovedTestimonials, getFaq } from "@/server/content";
 import { getDictionary } from "@/i18n/server";
 
 export default async function LandingPage() {
-  const [dict, snapshot, testimonials, posts, faq] = await Promise.all([
+  const [dict, snapshot, testimonials, faq] = await Promise.all([
     getDictionary(),
     getMarketSnapshot(),
     getApprovedTestimonials(),
-    getLatestBlogPosts(),
     getFaq(),
   ]);
 
@@ -75,10 +73,6 @@ export default async function LandingPage() {
 
       <Section id="faq" title={dict.faq.title}>
         <Faq items={faq ?? dict.faq.items} />
-      </Section>
-
-      <Section id="blog" title={dict.blog.title} subtitle={dict.blog.subtitle}>
-        <BlogPreview posts={posts} dict={dict} />
       </Section>
 
       {/* Closing call to action */}

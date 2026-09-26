@@ -205,6 +205,9 @@ enum SecurityEventType {
   KYC_SUBMITTED
   WITHDRAWAL_ADDRESS_ADDED
   WITHDRAWAL_REQUESTED
+  PASSWORD_CHANGED
+  API_KEY_CREATED
+  API_KEY_REVOKED
 }
 
 /// Append-only security log shown to the user (Security page) and to admins.

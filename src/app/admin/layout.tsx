@@ -17,6 +17,8 @@ const SECTIONS: { href: string; label: string; perm: Permission }[] = [
   { href: "/admin/deposits", label: "Deposits", perm: "payments.review" },
   { href: "/admin/withdrawals", label: "Withdrawals", perm: "payments.review" },
   { href: "/admin/transactions", label: "Transactions", perm: "transactions.view" },
+  { href: "/admin/support", label: "Support inbox", perm: "support.manage" },
+  { href: "/admin/listings", label: "Listing requests", perm: "listings.view" },
   { href: "/admin/coins", label: "Coins & pairs", perm: "settings.manage" },
   { href: "/admin/settings", label: "Fees, limits & rewards", perm: "settings.manage" },
   { href: "/admin/content", label: "Content", perm: "content.manage" },

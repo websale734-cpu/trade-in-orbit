@@ -21,6 +21,8 @@ import type { Prisma, Role, User } from "@/generated/prisma/client";
 export const PERMISSIONS = {
   "users.view": ["SUPPORT", "COMPLIANCE", "ADMIN", "SUPER_ADMIN"],
   "transactions.view": ["SUPPORT", "COMPLIANCE", "ADMIN", "SUPER_ADMIN"],
+  "support.manage": ["SUPPORT", "COMPLIANCE", "ADMIN", "SUPER_ADMIN"],
+  "listings.view": ["COMPLIANCE", "ADMIN", "SUPER_ADMIN"],
   "users.suspend": ["COMPLIANCE", "ADMIN", "SUPER_ADMIN"],
   "kyc.review": ["COMPLIANCE", "ADMIN", "SUPER_ADMIN"],
   "payments.review": ["COMPLIANCE", "ADMIN", "SUPER_ADMIN"],

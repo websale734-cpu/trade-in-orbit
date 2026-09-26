@@ -279,6 +279,8 @@ export async function placeLimitOrder(input: {
   base: string;
   quantity: string;
   limitPrice: string;
+  /** Makes retried submissions (e.g. API clients) safe: a repeat is rejected as a duplicate. */
+  idempotencyKey?: string;
 }) {
   const [asset, usd] = await Promise.all([assetInfo(input.base), assetInfo("USD")]);
   const account = await tradingAccount(input.userId, input.accountId, input.demo);
@@ -302,6 +304,7 @@ export async function placeLimitOrder(input: {
         description: `Limit ${input.side.toLowerCase()} ${qty} ${asset.code} @ ${limit} USD placed (funds reserved)`,
         userId: input.userId,
         metadata: { limitOrder: true, demo: input.demo },
+        idempotencyKey: input.idempotencyKey ? `limit:${input.userId}:${input.idempotencyKey}` : undefined,
         postings: [
           { ledgerAccountId: user.id, assetCode: holdAsset, amount: hold.negated() },
           { ledgerAccountId: escrow.id, assetCode: holdAsset, amount: hold },

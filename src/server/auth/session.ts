@@ -17,7 +17,8 @@ import { getRequestInfo } from "../request-info";
  *   - idle:     SESSION_IDLE_MINUTES since last activity (default 30)
  *   - absolute: SESSION_MAX_HOURS since sign-in (default 12)
  */
-export const SESSION_COOKIE = "orb_session";
+/** `__Host-` in production: the browser only accepts it over HTTPS, host-only, path "/", so no subdomain can set or read it. */
+export const SESSION_COOKIE = process.env.NODE_ENV === "production" ? "__Host-orb_session" : "orb_session";
 const TOUCH_INTERVAL_MS = 60_000;
 
 const cookieBase = {
@@ -95,7 +96,8 @@ export async function destroyCurrentSession(): Promise<void> {
       data: { revokedAt: new Date() },
     });
   }
-  jar.delete(SESSION_COOKIE);
+  // Expire with the same attributes it was set with (a __Host- cookie can only be cleared with Secure + path "/").
+  jar.set(SESSION_COOKIE, "", { ...cookieBase, maxAge: 0 });
 }
 
 /** Revoke every session for a user, optionally keeping one (the current device). */
