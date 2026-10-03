@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Bell, LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { MarketProvider } from "@/components/market/market-provider";
 import { AppNav, MobileTabBar } from "@/components/layout/app-nav";
 import { ChatWidget } from "@/components/support/chat-widget";
@@ -58,6 +59,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
                   ADMIN
                 </Link>
               )}
+              <LanguageSwitcher className="max-sm:hidden" />
               <ThemeToggle />
               <Link
                 href="/notifications"

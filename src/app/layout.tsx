@@ -5,6 +5,7 @@ import { ThemeScript } from "@/components/theme/theme-script";
 import { NonceProvider } from "@/components/security/nonce";
 import { I18nProvider } from "@/i18n/client";
 import { getDictionary, getLocale } from "@/i18n/server";
+import { localeDir } from "@/i18n/config";
 import { siteConfig } from "@/config/site";
 import "./globals.css";
 
@@ -17,7 +18,12 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: dict.meta.title, template: "%s · Trade In Orbit" },
     description: dict.meta.description,
     applicationName: "Trade In Orbit",
-    openGraph: { title: dict.meta.title, description: dict.meta.description, siteName: "Trade In Orbit", type: "website" },
+    openGraph: {
+      title: dict.meta.title,
+      description: dict.meta.description,
+      siteName: "Trade In Orbit",
+      type: "website",
+    },
   };
 }
 
@@ -38,7 +44,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     // Dark is the default theme; ThemeScript swaps to the saved preference before paint.
-    <html lang={locale} data-theme="dark" className={`${inter.variable} h-full`} suppressHydrationWarning>
+    <html
+      lang={locale}
+      dir={localeDir(locale)}
+      data-theme="dark"
+      className={`${inter.variable} h-full`}
+      suppressHydrationWarning
+    >
       <head>
         <ThemeScript nonce={nonce} />
       </head>

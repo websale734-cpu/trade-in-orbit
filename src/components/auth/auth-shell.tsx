@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 
 /** Minimal, focused chrome for sign-up, login and onboarding: logo, theme toggle, centred card. */
 export function AuthShell({ children }: { children: React.ReactNode }) {
@@ -13,7 +14,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <Link href="/" aria-label="Trade In Orbit home">
           <Logo />
         </Link>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="relative flex flex-1 items-start justify-center px-4 pt-4 pb-16 sm:items-center sm:pt-0">

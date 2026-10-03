@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LogoMark } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { can, requireStaff, type Permission } from "@/server/admin/rbac";
 
@@ -47,6 +48,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
             {user.name} · <span className="font-semibold text-fg">{user.role.replace("_", " ")}</span>
           </p>
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             <ThemeToggle />
             <Link href="/dashboard" className="hover:text-fg">
               ← Back to app

@@ -6,6 +6,11 @@ import type { Dictionary } from "./dictionaries/en";
 /** Lazy loaders so each request only loads the locale it needs. */
 const loaders: Record<Locale, () => Promise<Dictionary>> = {
   en: () => import("./dictionaries/en").then((m) => m.default),
+  es: () => import("./dictionaries/es").then((m) => m.default),
+  fr: () => import("./dictionaries/fr").then((m) => m.default),
+  de: () => import("./dictionaries/de").then((m) => m.default),
+  zh: () => import("./dictionaries/zh").then((m) => m.default),
+  ar: () => import("./dictionaries/ar").then((m) => m.default),
 };
 
 /** Resolve the active locale from the user's cookie, falling back to the default. */

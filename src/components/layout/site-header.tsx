@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { ButtonLink } from "@/components/ui/button";
 import { useI18n } from "@/i18n/client";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <LanguageSwitcher className="max-sm:hidden" />
             <ThemeToggle />
             <ButtonLink href="/login" variant="ghost" size="sm" className="max-sm:hidden">
               {dict.common.logIn}
@@ -121,6 +123,7 @@ export function SiteHeader() {
             <ButtonLink href="/login" variant="secondary" size="lg" onClick={() => setOpen(false)}>
               {dict.common.logIn}
             </ButtonLink>
+            <LanguageSwitcher className="mt-1 [&>select]:w-full" />
           </div>
         </nav>
       </div>
