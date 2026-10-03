@@ -51,7 +51,7 @@ The app validates its server environment at runtime and refuses to serve pages w
 1. Import the Git repository in Vercel. The framework preset is Next.js and the build command is `npm run build` (it runs `prisma generate` first).
 2. Set the environment variables above and deploy.
 3. Add your custom domain. HTTPS is required: the session cookie is `__Host-` and HSTS is sent.
-4. **Background jobs.** `vercel.json` schedules `GET /api/cron/process` every minute. Vercel sends `Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set. Per-minute crons need a Vercel Pro plan; on Hobby, call the endpoint every minute from an external scheduler with that header. The job:
+4. **Background jobs.** `vercel.json` schedules `GET /api/cron/process` once a day (`0 0 * * *`), because Vercel's Hobby plan rejects deployments with more frequent crons. Vercel sends `Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set. The job should run every minute: on Hobby, call the endpoint every minute from an external scheduler with that header; on Pro, change the schedule to `* * * * *`. The job:
    - fills limit orders;
    - releases scheduled withdrawals;
    - triggers price alerts;
