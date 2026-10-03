@@ -194,11 +194,22 @@ export async function transferBetweenAccounts(input: {
   }
 }
 
+/** Customer-facing labels an admin can give a credit; the one they pick becomes the user's history heading. */
+export const ADMIN_CREDIT_LABELS = ["Deposit", "Transfer received", "Bonus", "Correction"] as const;
+export type AdminCreditLabel = (typeof ADMIN_CREDIT_LABELS)[number];
+/** Debits (negative amounts) are always shown to the customer as a neutral adjustment. */
+export const ADMIN_DEBIT_LABEL = "Adjustment";
+
 /**
- * Manual balance adjustment by staff (e.g. correcting a provider error). It's a
- * normal ADJUSTMENT journal entry against the ADMIN_ADJUSTMENTS system account,
- * with a mandatory reason and the acting admin recorded. It can't overdraw the
- * user (the database rejects it), and it's never a silent edit.
+ * Manual balance adjustment by staff (e.g. correcting a provider error, or
+ * crediting funds received off-platform). It's a normal ADJUSTMENT journal
+ * entry against the ADMIN_ADJUSTMENTS system account, for a specific asset, so
+ * the funds land in that coin's wallet. It can't overdraw the user (the database
+ * rejects it), and it's never a silent edit.
+ *
+ * `description` is the customer-facing note (where the funds came from) and is
+ * also kept verbatim as the entry's internal `reason` for the audit trail.
+ * `label` is the customer-facing heading for a credit; debits ignore it.
  */
 export async function adjustBalance(input: {
   actorId: string;
@@ -206,10 +217,15 @@ export async function adjustBalance(input: {
   assetCode: string;
   /** Signed amount: positive credits the user, negative debits. */
   amount: string;
-  reason: string;
+  /** Customer-facing source note, e.g. "Transfer from external BTC wallet". */
+  description: string;
+  /** One of ADMIN_CREDIT_LABELS for a credit; ignored for debits. */
+  label?: string;
 }) {
-  const reason = input.reason.trim();
-  if (reason.length < 10) throw new LedgerError("Give a clear reason (at least 10 characters).", "INVALID");
+  const description = input.description.trim();
+  if (description.length < 3)
+    throw new LedgerError("Add a short description of the source (at least 3 characters).", "INVALID");
+  if (description.length > 160) throw new LedgerError("Keep the description under 160 characters.", "INVALID");
   const [account, asset] = await Promise.all([
     db.account.findFirst({ where: { id: input.accountId, type: { not: "DEMO" } } }),
     db.asset.findUnique({ where: { code: input.assetCode } }),
@@ -217,10 +233,18 @@ export async function adjustBalance(input: {
   if (!account || !asset) throw new LedgerError("Account or asset not found.", "NOT_FOUND");
   // A leading "+" is accepted: the admin form's placeholder suggests "+25 or -25".
   const clean = input.amount.trim().replace(/^\+(?=\d)/, "");
-  if (!/^-?\d+(\.\d+)?$/.test(clean)) throw new LedgerError("Enter a signed amount, e.g. +25 or -25.", "INVALID_AMOUNT");
+  if (!/^-?\d+(\.\d+)?$/.test(clean))
+    throw new LedgerError("Enter a signed amount, e.g. +25 or -25.", "INVALID_AMOUNT");
   const amount = new Decimal(clean);
   if (amount.isZero() || amount.decimalPlaces() > asset.decimals)
     throw new LedgerError(`Use a non-zero amount with at most ${asset.decimals} decimals.`, "INVALID_AMOUNT");
+
+  // Debits read as a neutral "Adjustment"; credits use the admin's chosen label (default Deposit).
+  const customerLabel = amount.isNegative()
+    ? ADMIN_DEBIT_LABEL
+    : (ADMIN_CREDIT_LABELS as readonly string[]).includes(input.label ?? "")
+      ? (input.label as AdminCreditLabel)
+      : "Deposit";
 
   try {
     return await db.$transaction(async (tx) => {
@@ -228,10 +252,10 @@ export async function adjustBalance(input: {
       const pool = await systemLedgerAccount(tx, "ADMIN_ADJUSTMENTS", asset.code, true);
       return postEntry(tx, {
         type: "ADJUSTMENT",
-        description: `Balance adjustment: ${amount.gt(0) ? "+" : ""}${amount} ${asset.code}`,
+        description,
         userId: account.userId,
-        reason,
-        metadata: { actorId: input.actorId, accountId: account.id },
+        reason: description,
+        metadata: { actorId: input.actorId, accountId: account.id, customerLabel },
         postings: [
           { ledgerAccountId: user.id, assetCode: asset.code, amount },
           { ledgerAccountId: pool.id, assetCode: asset.code, amount: amount.negated() },

@@ -80,7 +80,8 @@ export async function adjustUserBalance(_p: FormState | undefined, fd: FormData)
       accountId,
       assetCode: String(fd.get("assetCode")),
       amount: String(fd.get("amount")),
-      reason: String(fd.get("reason") ?? ""),
+      description: String(fd.get("description") ?? ""),
+      label: String(fd.get("label") ?? ""),
     });
     await audit(
       admin,
@@ -90,7 +91,9 @@ export async function adjustUserBalance(_p: FormState | undefined, fd: FormData)
         accountId,
         assetCode: String(fd.get("assetCode")),
         amount: String(fd.get("amount")),
-        reason: String(fd.get("reason")),
+        label: String(fd.get("label") ?? ""),
+        // Stored as the internal reason for the audit trail (also shown to the customer).
+        reason: String(fd.get("description") ?? ""),
       },
     );
     revalidatePath(`/admin/users/${String(fd.get("userId"))}`);

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { ArrowDownRight, ArrowUpRight, Wallet } from "lucide-react";
+import { useMemo, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Eye, EyeOff, Wallet } from "lucide-react";
 import { useMarket } from "@/components/market/market-provider";
 import { Donut, type DonutSegment } from "@/components/charts/donut";
 import { formatMoney } from "@/config/currencies";
@@ -18,25 +19,81 @@ const SLOTS = [
   "var(--series-6)",
 ];
 const MAX_SEGMENTS = 5;
+const DOTS = "••••••";
+const HIDE_KEY = "orb_hide_balance";
+const HIDE_EVENT = "orb-hide-balance";
+
+/**
+ * Whether balances are hidden, backed by localStorage via useSyncExternalStore
+ * so it's hydration-safe (server renders "shown") and shared across any
+ * instance on the page. Returns the flag and a toggle.
+ */
+function useHiddenBalance(): [boolean, () => void] {
+  const hidden = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener(HIDE_EVENT, cb);
+      window.addEventListener("storage", cb);
+      return () => {
+        window.removeEventListener(HIDE_EVENT, cb);
+        window.removeEventListener("storage", cb);
+      };
+    },
+    () => {
+      try {
+        return localStorage.getItem(HIDE_KEY) === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
+  const toggle = () => {
+    try {
+      localStorage.setItem(HIDE_KEY, hidden ? "0" : "1");
+    } catch {
+      /* storage blocked: the view still toggles for this render via the event */
+    }
+    window.dispatchEvent(new Event(HIDE_EVENT));
+  };
+  return [hidden, toggle];
+}
 
 /**
  * Total balance (USD + local currency), 24h change and holdings breakdown.
  * Values recompute live as prices stream in. USD is valued at 1; an asset with
  * no available price is listed but excluded from totals, and the UI says so.
+ * Each holding is a tappable row linking to that coin's detail page, and an eye
+ * toggle hides every monetary value (persisted per browser).
  */
 export function PortfolioSummary({
   holdings,
   currency,
   fxRate,
+  linkByAsset,
   labels,
 }: {
   holdings: Holding[];
   currency: string;
   /** USD -> local currency. Null when rates are unavailable. */
   fxRate: number | null;
-  labels: { total: string; change24h: string; breakdown: string; empty: string; unpriced: string; other: string };
+  /** assetCode -> href for that coin's detail page. */
+  linkByAsset: Record<string, string>;
+  labels: {
+    total: string;
+    change24h: string;
+    breakdown: string;
+    empty: string;
+    unpriced: string;
+    other: string;
+    show: string;
+    hide: string;
+    assets: string;
+  };
 }) {
   const { tickers } = useMarket();
+  const [hidden, toggle] = useHiddenBalance();
+  const money = (v: number) => (hidden ? DOTS : formatMoney(v, "usd"));
+  const amount = (v: number) => (hidden ? "••••" : v.toLocaleString("en-US", { maximumFractionDigits: 8 }));
 
   const rows = useMemo(() => {
     return holdings.map((h) => {
@@ -76,7 +133,7 @@ export function PortfolioSummary({
     label: r.name,
     value: r.value,
     color: SLOTS[colourOrder.indexOf(r.code)] ?? "var(--series-other)",
-    display: formatMoney(r.value, "usd"),
+    display: money(r.value),
   }));
   const otherValue = rest.reduce((s, r) => s + r.value, 0);
   if (otherValue > 0)
@@ -85,29 +142,84 @@ export function PortfolioSummary({
       label: labels.other,
       value: otherValue,
       color: "var(--series-other)",
-      display: formatMoney(otherValue, "usd"),
+      display: money(otherValue),
     });
 
   const local = fxRate !== null && currency !== "usd" ? total * fxRate : null;
+  const colorFor = (code: string) => segments.find((s) => s.key === code)?.color ?? "var(--series-other)";
+  const unpriced = rows.filter((r) => r.value === null);
+
+  // One tappable holding row: colour dot, code + name, quantity and value.
+  function HoldingRow({
+    code,
+    name,
+    color,
+    qtyText,
+    valueNode,
+  }: {
+    code: string;
+    name: string;
+    color: string;
+    qtyText: string;
+    valueNode: React.ReactNode;
+  }) {
+    const href = linkByAsset?.[code];
+    const inner = (
+      <>
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="h-3 w-3 shrink-0 rounded-[3px]" style={{ background: color }} aria-hidden />
+          <span className="font-medium">{code}</span>
+          <span className="hidden truncate text-muted sm:inline">{name}</span>
+        </span>
+        <span className="flex items-center gap-3">
+          <span className="tabular text-right text-muted">{qtyText}</span>
+          <span className="tabular text-right font-medium">{valueNode}</span>
+          {href && <ChevronRight className="h-4 w-4 shrink-0 text-subtle" aria-hidden />}
+        </span>
+      </>
+    );
+    const className = "flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-0 text-sm";
+    return href ? (
+      <Link href={href} className={cn(className, "-mx-2 rounded-lg px-2 transition-colors hover:bg-surface/60")}>
+        {inner}
+      </Link>
+    ) : (
+      <div className={className}>{inner}</div>
+    );
+  }
 
   return (
     <section className="glass ring-brand rounded-[var(--radius-card)] p-6 sm:p-8" aria-label={labels.total}>
-      <p className="text-sm font-medium text-muted">{labels.total}</p>
-      {/* Hero figure: proportional figures, same sans as the UI */}
-      <p className="mt-2 text-5xl font-semibold tracking-tight sm:text-6xl">{formatMoney(total, "usd")}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        {local !== null && <span className="text-muted">≈ {formatMoney(local, currency)}</span>}
-        {total > 0 && (
-          <span className={cn("inline-flex items-center gap-1 font-medium", up ? "text-up" : "text-down")}>
-            {up ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-            {formatMoney(Math.abs(delta), "usd")} ({deltaPct >= 0 ? "+" : ""}
-            {deltaPct.toFixed(2)}%)
-            <span className="font-normal text-muted">{labels.change24h}</span>
-          </span>
-        )}
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-muted">{labels.total}</p>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-pressed={hidden}
+          aria-label={hidden ? labels.show : labels.hide}
+          title={hidden ? labels.show : labels.hide}
+          className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors hover:bg-surface hover:text-fg"
+        >
+          {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
       </div>
+      {/* Hero figure: proportional figures, same sans as the UI */}
+      <p className="mt-2 text-5xl font-semibold tracking-tight sm:text-6xl">{money(total)}</p>
+      {!hidden && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {local !== null && <span className="text-muted">≈ {formatMoney(local, currency)}</span>}
+          {total > 0 && (
+            <span className={cn("inline-flex items-center gap-1 font-medium", up ? "text-up" : "text-down")}>
+              {up ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+              {formatMoney(Math.abs(delta), "usd")} ({deltaPct >= 0 ? "+" : ""}
+              {deltaPct.toFixed(2)}%)
+              <span className="font-normal text-muted">{labels.change24h}</span>
+            </span>
+          )}
+        </div>
+      )}
 
-      {priced.length === 0 ? (
+      {priced.length === 0 && unpriced.length === 0 ? (
         <div className="mt-8 flex items-center gap-3 rounded-2xl border border-dashed border-line-strong p-5 text-sm text-muted">
           <Wallet className="h-5 w-5 shrink-0" />
           {labels.empty}
@@ -118,51 +230,41 @@ export function PortfolioSummary({
             <Donut
               segments={segments}
               centerLabel={labels.breakdown}
-              centerValue={`${priced.length} assets`}
+              centerValue={`${priced.length} ${labels.assets}`}
               size={188}
             />
           )}
-          {/* Legend = table view: every value readable without hovering */}
-          <table className="w-full text-sm">
-            <caption className="sr-only">{labels.breakdown}</caption>
-            <tbody>
-              {byValue.map((r) => {
-                const seg = segments.find((s) => s.key === r.code);
-                const pct = total > 0 ? (r.value / total) * 100 : 0;
-                return (
-                  <tr key={r.code} className="border-b border-line last:border-0">
-                    <td className="py-2.5 pr-3">
-                      <span className="flex items-center gap-2.5">
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-[3px]"
-                          style={{ background: seg?.color ?? "var(--series-other)" }}
-                          aria-hidden
-                        />
-                        <span className="font-medium">{r.code}</span>
-                        <span className="hidden truncate text-muted sm:inline">{r.name}</span>
-                      </span>
-                    </td>
-                    <td className="tabular py-2.5 pr-3 text-right text-muted">
-                      {r.qty.toLocaleString("en-US", { maximumFractionDigits: 8 })}
-                    </td>
-                    <td className="tabular py-2.5 pr-3 text-right font-medium">{formatMoney(r.value, "usd")}</td>
-                    <td className="tabular w-16 py-2.5 text-right text-muted">{pct.toFixed(1)}%</td>
-                  </tr>
-                );
-              })}
-              {rows
-                .filter((r) => r.value === null)
-                .map((r) => (
-                  <tr key={r.code} className="border-b border-line last:border-0">
-                    <td className="py-2.5 pr-3 font-medium">{r.code}</td>
-                    <td className="tabular py-2.5 pr-3 text-right text-muted">{r.qty}</td>
-                    <td colSpan={2} className="py-2.5 text-right text-xs text-muted">
-                      {labels.unpriced}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+          <div className={segments.length > 1 ? "" : "md:col-span-2"}>
+            <h3 className="sr-only">{labels.breakdown}</h3>
+            {byValue.map((r) => {
+              const pct = total > 0 ? (r.value / total) * 100 : 0;
+              return (
+                <HoldingRow
+                  key={r.code}
+                  code={r.code}
+                  name={r.name}
+                  color={colorFor(r.code)}
+                  qtyText={amount(r.qty)}
+                  valueNode={
+                    <span className="inline-flex items-baseline gap-2">
+                      {money(r.value)}
+                      {!hidden && <span className="w-12 text-right text-xs text-muted">{pct.toFixed(1)}%</span>}
+                    </span>
+                  }
+                />
+              );
+            })}
+            {unpriced.map((r) => (
+              <HoldingRow
+                key={r.code}
+                code={r.code}
+                name={r.name}
+                color="var(--series-other)"
+                qtyText={amount(r.qty)}
+                valueNode={<span className="text-xs text-muted">{labels.unpriced}</span>}
+              />
+            ))}
+          </div>
         </div>
       )}
     </section>

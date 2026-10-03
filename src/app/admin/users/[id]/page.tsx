@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { LocalTime } from "@/components/ui/local-time";
 import { ActionForm } from "@/components/admin/action-form";
 import { adminButton, adminInput } from "@/components/admin/styles";
+import { ADMIN_CREDIT_LABELS } from "@/server/ledger";
 import { cn } from "@/lib/utils";
 import { adjustUserBalance, decideKyc, setUserRole, setUserStatus } from "../../actions";
 
@@ -91,9 +92,10 @@ export default async function AdminUser({ params }: PageProps<"/admin/users/[id]
           )}
           {can(admin, "ledger.adjust") && realAccounts.length > 0 && (
             <ActionForm action={adjustUserBalance}>
-              <h2 className="font-semibold">Balance adjustment</h2>
+              <h2 className="font-semibold">Credit or adjust balance</h2>
               <p className="text-xs text-muted">
-                Posted as a ledger journal entry with your name and reason. Balances are never edited directly.
+                Posted as a ledger journal entry with your name and note. Funds land in the chosen coin&apos;s wallet.
+                Balances are never edited directly.
               </p>
               <input type="hidden" name="userId" value={u.id} />
               <div className="grid grid-cols-3 gap-2">
@@ -104,17 +106,34 @@ export default async function AdminUser({ params }: PageProps<"/admin/users/[id]
                     </option>
                   ))}
                 </select>
-                <select name="assetCode" className={adminInput} aria-label="Asset">
+                <select name="assetCode" className={adminInput} aria-label="Coin">
                   {assets.map((a) => (
                     <option key={a.code}>{a.code}</option>
                   ))}
                 </select>
                 <input name="amount" placeholder="+25 or -25" className={adminInput} aria-label="Signed amount" />
               </div>
-              {/* No minLength here: the ledger enforces 10 characters and returns a clear
-                  message. A browser minLength blocked the submit before the server saw it. */}
-              <input name="reason" placeholder="Reason (min 10 characters)" className={adminInput} required />
-              <button className={cn(adminButton, "bg-surface-strong")}>Post adjustment</button>
+              <div className="grid grid-cols-[minmax(0,0.9fr)_1.4fr] gap-2">
+                <select name="label" className={adminInput} aria-label="Shown to customer as" defaultValue="Deposit">
+                  {ADMIN_CREDIT_LABELS.map((l) => (
+                    <option key={l}>{l}</option>
+                  ))}
+                </select>
+                {/* No minLength here: the ledger enforces 3 characters and returns a clear
+                    message. A browser minLength blocked the submit before the server saw it. */}
+                <input
+                  name="description"
+                  placeholder="Source, e.g. Transfer from external BTC wallet"
+                  className={adminInput}
+                  aria-label="Description shown to the customer"
+                  required
+                />
+              </div>
+              <p className="text-xs text-subtle">
+                The customer sees the label and description in their history. A negative amount posts as a neutral
+                &ldquo;Adjustment&rdquo; regardless of label.
+              </p>
+              <button className={cn(adminButton, "bg-surface-strong")}>Post to ledger</button>
             </ActionForm>
           )}
           {can(admin, "roles.manage") && u.id !== admin.id && (

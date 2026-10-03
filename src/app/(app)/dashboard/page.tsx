@@ -49,6 +49,8 @@ export default async function DashboardPage() {
   // Sum each asset across all of the user's accounts.
   const order = new Map(assets.map((a) => [a.code, a.sortOrder]));
   const totals = new Map<string, Holding>();
+  // For each coin, link to the account that holds the most of it (most users have one).
+  const bestAccount = new Map<string, { accountId: string; bal: number }>();
   for (const r of rows) {
     const prev = totals.get(r.assetCode);
     const sum = prev ? (Number(prev.balance) + Number(r.balance)).toString() : r.balance;
@@ -58,7 +60,12 @@ export default async function DashboardPage() {
       balance: sum,
       sortOrder: order.get(r.assetCode) ?? 99,
     });
+    const bal = Number(r.balance);
+    const cur = bestAccount.get(r.assetCode);
+    if (!cur || bal > cur.bal) bestAccount.set(r.assetCode, { accountId: r.accountId, bal });
   }
+  const linkByAsset: Record<string, string> = {};
+  for (const [code, v] of bestAccount) linkByAsset[code] = `/accounts/${v.accountId}/${code}`;
 
   const chartAssets = trackedCoins.filter((c) => c.binanceSymbol).map((c) => ({ code: c.symbol, name: c.name }));
   const quick = [
@@ -99,6 +106,7 @@ export default async function DashboardPage() {
         holdings={[...totals.values()]}
         currency={user.currency}
         fxRate={fx?.rates[user.currency] ?? null}
+        linkByAsset={linkByAsset}
         labels={{
           total: d.totalBalance,
           change24h: d.change24h,
@@ -106,6 +114,9 @@ export default async function DashboardPage() {
           empty: d.emptyPortfolio,
           unpriced: d.unpriced,
           other: d.other,
+          show: d.showBalance,
+          hide: d.hideBalance,
+          assets: d.assets,
         }}
       />
 
