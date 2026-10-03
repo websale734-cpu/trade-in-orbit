@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/server/db";
+import { smsEnabled } from "@/server/env";
 import { activeCode, checkCode, cooldownRemaining, RESEND_COOLDOWN_SECONDS, sendCode } from "@/server/auth/codes";
 import { ONBOARDING_PATHS, nextOnboardingStep, requireSession } from "@/server/auth/dal";
 import { logSecurityEvent } from "@/server/auth/security-log";
@@ -65,7 +66,7 @@ export type PhoneState = FormState & { sentTo?: string; cooldown?: number };
 export async function sendPhoneCode(_prev: PhoneState | undefined, fd: FormData): Promise<PhoneState> {
   const { user } = await requireSession();
   if (!user.emailVerifiedAt) redirect(ONBOARDING_PATHS.email);
-  if (user.phoneVerifiedAt) return continueOnboarding(user.id);
+  if (user.phoneVerifiedAt || !smsEnabled()) return continueOnboarding(user.id);
 
   const raw = String(fd.get("phone") ?? "");
   const phone = normalisePhone(raw);
@@ -89,6 +90,7 @@ export async function sendPhoneCode(_prev: PhoneState | undefined, fd: FormData)
 
 export async function resendPhoneCode(): Promise<ResendState> {
   const { user } = await requireSession();
+  if (!smsEnabled()) return continueOnboarding(user.id);
   const code = await activeCode(user.id, "PHONE_VERIFY");
   if (!code) return { error: "Enter your number again to get a new code." };
   const wait = cooldownRemaining(code);
@@ -102,7 +104,7 @@ export async function resendPhoneCode(): Promise<ResendState> {
 
 export async function verifyPhone(_prev: FormState | undefined, fd: FormData): Promise<FormState> {
   const { user } = await requireSession();
-  if (user.phoneVerifiedAt) return continueOnboarding(user.id);
+  if (user.phoneVerifiedAt || !smsEnabled()) return continueOnboarding(user.id);
 
   const code = await activeCode(user.id, "PHONE_VERIFY");
   if (!code) return { error: "Your code expired. Enter your number again." };

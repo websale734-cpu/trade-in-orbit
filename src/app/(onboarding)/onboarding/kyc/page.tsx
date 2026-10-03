@@ -4,7 +4,7 @@ import { CircleCheck, Clock, ShieldAlert } from "lucide-react";
 import { AuthHeading } from "@/components/auth/auth-shell";
 import { StepProgress } from "@/components/auth/step-progress";
 import { ButtonLink } from "@/components/ui/button";
-import { ONBOARDING_PATHS, nextOnboardingStep, requireSession } from "@/server/auth/dal";
+import { ONBOARDING_PATHS, nextOnboardingStep, onboardingProgress, requireSession } from "@/server/auth/dal";
 import { latestKycSubmission } from "@/server/kyc";
 import { countryOptions } from "@/config/countries";
 import { getDictionary, getLocale } from "@/i18n/server";
@@ -21,7 +21,14 @@ export default async function KycPage() {
   const [dict, locale, latest] = await Promise.all([getDictionary(), getLocale(), latestKycSubmission(user.id)]);
   const a = dict.auth;
   const k = a.kyc;
-  const progress = <StepProgress steps={a.steps} current={5} label={fmt(a.stepOf, { n: 5, total: a.steps.length })} />;
+  const bar = onboardingProgress(a.steps, 4);
+  const progress = (
+    <StepProgress
+      steps={bar.steps}
+      current={bar.current}
+      label={fmt(a.stepOf, { n: bar.current, total: bar.steps.length })}
+    />
+  );
 
   if (user.kycStatus === "PENDING" || user.kycStatus === "APPROVED") {
     const s = k.status[user.kycStatus];

@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { getSession } from "./session";
+import { smsEnabled } from "../env";
 import type { User } from "@/generated/prisma/client";
 
 /**
@@ -20,17 +21,33 @@ export const ONBOARDING_PATHS: Record<OnboardingStep, string> = {
 
 /**
  * The next required onboarding step, or null when the user can use the app.
- * Email and phone verification are mandatory; the 2FA screen is shown once
- * (the user may skip it). KYC is optional to browse, and required to move money
+ * Email verification is mandatory, and so is phone verification while SMS is
+ * enabled (SMS_PROVIDER isn't "none"); the 2FA screen is shown once (the user
+ * may skip it). KYC is optional to browse, and required to move money
  * (enforced by the funding flows in Phase 4).
  */
 export function nextOnboardingStep(
   user: Pick<User, "emailVerifiedAt" | "phoneVerifiedAt" | "twoFactorPromptedAt">,
 ): OnboardingStep | null {
   if (!user.emailVerifiedAt) return "email";
-  if (!user.phoneVerifiedAt) return "phone";
+  if (!user.phoneVerifiedAt && smsEnabled()) return "phone";
   if (!user.twoFactorPromptedAt) return "two-factor";
   return null;
+}
+
+/** Position of the phone step in the dictionary's onboarding step labels. */
+const PHONE_STEP_INDEX = 2;
+
+/**
+ * Progress-bar labels and the 1-based current step for the step at `index` in
+ * the full label list, leaving out "Phone" while SMS is disabled.
+ */
+export function onboardingProgress(labels: readonly string[], index: number) {
+  if (smsEnabled()) return { steps: labels, current: index + 1 };
+  return {
+    steps: labels.filter((_, i) => i !== PHONE_STEP_INDEX),
+    current: index > PHONE_STEP_INDEX ? index : index + 1,
+  };
 }
 
 /** Signed-in session or redirect to login. */

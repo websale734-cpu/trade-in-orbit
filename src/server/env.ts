@@ -26,7 +26,8 @@ const schema = z
     SENDGRID_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().default("Trade In Orbit <no-reply@orbtrade.example>"),
 
-    SMS_PROVIDER: z.enum(["twilio", "console"]).default(isProd ? "twilio" : "console"),
+    // "none" turns SMS off: phone verification is skipped during onboarding.
+    SMS_PROVIDER: z.enum(["twilio", "console", "none"]).default(isProd ? "none" : "console"),
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_VERIFY_SERVICE_SID: z.string().optional(),
@@ -49,6 +50,11 @@ const schema = z
   });
 
 export type ServerEnv = z.infer<typeof schema>;
+
+/** Whether SMS codes can be sent. When false, onboarding skips phone verification. */
+export function smsEnabled(): boolean {
+  return env().SMS_PROVIDER !== "none";
+}
 
 let cached: ServerEnv | null = null;
 

@@ -80,7 +80,7 @@ const en = {
     title: "Up and running in minutes",
     steps: [
       { title: "Create your account", body: "Sign up with your email and set a strong password." },
-      { title: "Verify your identity", body: "Confirm your email and phone, then upload your ID and a selfie." },
+      { title: "Verify your identity", body: "Confirm your email, then upload your ID and a selfie." },
       { title: "Fund your account", body: "Deposit by bank transfer, card, mobile money or crypto." },
       { title: "Start trading", body: "Buy, sell, swap or set up recurring buys, all with live rates." },
     ],

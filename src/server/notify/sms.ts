@@ -11,6 +11,8 @@ import { randomCode } from "../crypto";
  *               cooldown and attempt limits in the database.
  *   - console : development only. We generate the code, print it to the server
  *               console and verify it ourselves.
+ *   - none    : SMS is off. Onboarding skips phone verification, so nothing
+ *               should call these functions.
  */
 export type SmsStartResult =
   /** Provider owns the code (Twilio Verify). */
@@ -20,6 +22,7 @@ export type SmsStartResult =
 
 export async function startSmsVerification(phone: string): Promise<SmsStartResult> {
   const e = env();
+  if (e.SMS_PROVIDER === "none") throw new Error("SMS is disabled (SMS_PROVIDER=none).");
   if (e.SMS_PROVIDER === "console") {
     const code = randomCode();
     console.info(`\n[sms:console] To: ${phone}\nYour Trade In Orbit verification code is ${code}\n`);

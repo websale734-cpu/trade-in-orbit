@@ -27,7 +27,7 @@ Set these in Vercel → Project → Settings → Environment Variables (Producti
 | --- | --- |
 | Always | `NEXT_PUBLIC_APP_URL` (your https domain), `DATABASE_URL` (pooled), `DATABASE_URL_UNPOOLED` (direct), `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`, `CRON_SECRET` |
 | Email | `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` (or `sendgrid` + `SENDGRID_API_KEY`), `EMAIL_FROM` (a verified sender) |
-| SMS | `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` |
+| SMS (optional) | `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`. Leave `SMS_PROVIDER` unset (or `none`) to launch without SMS: onboarding then skips phone verification. Turning SMS on later sends existing users without a verified phone to that step on their next visit. |
 | Card deposits | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` |
 | Bank deposits | `BANK_ACCOUNT_NAME`, `BANK_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_ROUTING` |
 | Push (optional) | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`npx web-push generate-vapid-keys`) |
