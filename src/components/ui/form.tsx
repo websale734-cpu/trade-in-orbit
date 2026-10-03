@@ -59,6 +59,7 @@ export function SubmitButton({
   className,
   variant,
   pendingLabel,
+  disabled,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost";
@@ -68,7 +69,7 @@ export function SubmitButton({
   return (
     <button
       type="submit"
-      disabled={pending || props.disabled}
+      disabled={pending || disabled}
       aria-busy={pending}
       className={buttonClasses({ variant, size: "lg", className: cn("w-full", className) })}
       {...props}

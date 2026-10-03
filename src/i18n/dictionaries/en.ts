@@ -288,6 +288,10 @@ const en = {
       selfie: "Selfie",
       selfieNote: "A clear photo of your face, no hat or sunglasses",
       fileHint: "JPG, PNG, WebP or PDF, up to 5 MB",
+      preparing: "Preparing photo…",
+      stillPreparing: "Your photos are still being prepared. Try again in a moment.",
+      tooLargeTotal:
+        "Your files add up to {size} MB, but they can be at most 4 MB together. Use photos instead of large PDFs, or a smaller scan.",
       choose: "Choose file",
       takePhoto: "Take photo",
       submit: "Submit for review",

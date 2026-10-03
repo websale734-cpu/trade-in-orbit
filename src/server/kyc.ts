@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "./db";
 import { encryptBytes, sha256Hex } from "./crypto";
+import { KYC_MAX_FILE_BYTES } from "@/lib/kyc-limits";
 import type { KycDocumentType, KycFileKind } from "@/generated/prisma/client";
 
 /**
@@ -12,7 +13,7 @@ import type { KycDocumentType, KycFileKind } from "@/generated/prisma/client";
  * move to object storage later (e.g. a private Supabase Storage bucket or S3), swap
  * `storeFile` and keep the metadata table.
  */
-export const KYC_MAX_BYTES = 5 * 1024 * 1024;
+export const KYC_MAX_BYTES = KYC_MAX_FILE_BYTES;
 
 type Sniffed = "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
 
