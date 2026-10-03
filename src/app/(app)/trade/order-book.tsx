@@ -76,7 +76,7 @@ export function OrderBook({ coins }: { coins: string[] }) {
           aria-label="Order book asset"
         >
           {coins.map((c) => (
-            <option key={c} value={c} className="bg-bg-elevated">
+            <option key={c} value={c}>
               {c}/USD
             </option>
           ))}

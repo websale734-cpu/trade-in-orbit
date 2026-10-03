@@ -214,6 +214,21 @@ body {
   background: color-mix(in oklab, var(--accent-violet) 40%, transparent);
 }
 
+@layer base {
+  /* A select's option list opens as a separate browser popup. Chrome and Edge
+     paint it with the select's background minus its transparency, so our
+     translucent --surface becomes solid white under light text in dark mode.
+     Give every option an opaque themed background. */
+  option,
+  optgroup {
+    background-color: var(--bg-elevated);
+    color: var(--fg);
+  }
+  option:disabled {
+    color: var(--subtle);
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--accent-cyan);
   outline-offset: 2px;

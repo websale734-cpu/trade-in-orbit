@@ -21,7 +21,7 @@ export function CurrencySelect({ current, label }: { current: string; label: str
         className="h-9 cursor-pointer rounded-full border border-line-strong bg-surface px-3 text-sm font-medium outline-none focus:border-accent"
       >
         {DISPLAY_CURRENCIES.map((c) => (
-          <option key={c} value={c} className="bg-bg-elevated">
+          <option key={c} value={c}>
             {c.toUpperCase()} · {names.of(c.toUpperCase())}
           </option>
         ))}

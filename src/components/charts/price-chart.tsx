@@ -122,7 +122,7 @@ export function PriceChart({
             className="cursor-pointer appearance-none rounded-lg bg-transparent pr-5 text-lg font-semibold outline-none"
           >
             {assets.map((a) => (
-              <option key={a.code} value={a.code} className="bg-bg-elevated text-fg">
+              <option key={a.code} value={a.code}>
                 {a.code} · {a.name}
               </option>
             ))}
