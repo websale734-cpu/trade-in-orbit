@@ -2,7 +2,7 @@
  * ISO 3166-1 alpha-2 country codes. Display names come from Intl.DisplayNames,
  * so they're localised automatically when more languages are added.
  *
- * Restrict this list (or add a denylist) to match the jurisdictions Orbtrade is
+ * Restrict this list (or add a denylist) to match the jurisdictions Trade In Orbit is
  * licensed to serve, per compliance advice.
  */
 export const COUNTRY_CODES = (

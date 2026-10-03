@@ -84,7 +84,7 @@ To report a vulnerability, email the address in `NEXT_PUBLIC_SUPPORT_EMAIL` with
 2. **IDOR.** Ticket, alert, recurring-buy, API-key, order and session mutations are all scoped by owner. The e2e suite confirms that another customer gets a 404 on a ticket URL.
 3. **Injection.** All database access goes through Prisma or tagged-template `$queryRaw`, which is parameterised. There is no string-built SQL.
 4. **Dependencies.** `npm audit` reports 0 vulnerabilities. Patched transitive versions of `mysql2` and `deepmerge-ts` (pulled in by the Prisma CLI) are pinned via `overrides` in `package.json`.
-5. **Secrets.** `.env.local`, `.neon` and the generated client are git-ignored, and no secrets are in the repo. Production refuses `console` email/SMS providers and sandbox payment flows.
+5. **Secrets.** `.env.local` and the generated client are git-ignored, and no secrets are in the repo. Production refuses `console` email/SMS providers and sandbox payment flows.
 6. **Fixes made during the review:**
    - added the nonce CSP;
    - switched the session cookie to `__Host-`;

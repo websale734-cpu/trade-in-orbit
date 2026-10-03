@@ -3,7 +3,7 @@ import { Eye, Lock, Scale } from "lucide-react";
 import { Container } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 
-export const metadata: Metadata = { title: "About", description: "Who we are and how Orbtrade works." };
+export const metadata: Metadata = { title: "About", description: "Who we are and how Trade In Orbit works." };
 
 export default function AboutPage() {
   const values = [
@@ -13,9 +13,9 @@ export default function AboutPage() {
   ];
   return (
     <Container className="max-w-3xl py-16 sm:py-24">
-      <h1 className="text-4xl font-semibold tracking-tight">About Orbtrade</h1>
+      <h1 className="text-4xl font-semibold tracking-tight">About Trade In Orbit</h1>
       <p className="mt-6 text-lg leading-relaxed text-muted">
-        Orbtrade is a crypto brokerage: you buy, sell and swap digital assets with us at live market prices, from an
+        Trade In Orbit is a crypto brokerage: you buy, sell and swap digital assets with us at live market prices, from an
         account that&apos;s simple to use and serious about security.
       </p>
       {/* Placeholder: replace with the company's real story, registered entity and licensing details before launch. */}

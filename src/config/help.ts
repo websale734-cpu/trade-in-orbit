@@ -11,7 +11,7 @@ export const helpTopics: { id: string; title: string; items: { q: string; a: str
       { q: "How do I turn on two-factor authentication?", a: "Go to More → Security and choose Set up 2FA. Scan the QR code with an authenticator app, enter the 6-digit code, and store your recovery codes somewhere safe." },
       { q: "I lost my authenticator device.", a: "Log in with one of your recovery codes, then set up 2FA again on your new device. If you have no recovery codes, contact support; we'll verify your identity before resetting 2FA." },
       { q: "How do I change my password?", a: "More → Security → Change password. You'll need your current password. Other devices are signed out when you change it." },
-      { q: "Will Orbtrade ever ask for my password or 2FA codes?", a: "Never. Staff will never ask for your password, 2FA codes, recovery codes or card details by chat, email or phone." },
+      { q: "Will Trade In Orbit ever ask for my password or 2FA codes?", a: "Never. Staff will never ask for your password, 2FA codes, recovery codes or card details by chat, email or phone." },
     ],
   },
   {

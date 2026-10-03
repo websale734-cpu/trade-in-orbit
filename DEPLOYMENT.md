@@ -1,25 +1,23 @@
 # Deploying Orbtrade
 
-This guide deploys Orbtrade to **Vercel** with **Neon Postgres**, then covers the go-live checklist. It's written for whoever runs production.
+This guide deploys Orbtrade to **Vercel** with **Supabase Postgres**, then covers the go-live checklist. It's written for whoever runs production.
 
 > Orbtrade handles money and identity documents. Don't open it to the public until every item in the [go-live checklist](#go-live-checklist) is done, including licensing and legal review.
 
-## 1. Database (Neon)
+## 1. Database (Supabase)
 
-The Neon project has a `production` branch and a `dev` branch.
+Use a dedicated Supabase project for production, separate from development.
 
-1. Get the production connection strings: `neon connection-string production --pooled` (app) and `neon connection-string production` (migrations).
-2. Apply migrations, and nothing else, to production:
+1. Get the production connection strings from the Supabase dashboard (Project Settings → Database → Connection string): the Transaction pooler URL (port 6543, append `?pgbouncer=true`) for the app, and the direct/Session URL (port 5432) for migrations.
+2. Apply migrations, and nothing else, to production. Point `DATABASE_URL_UNPOOLED` (and `DATABASE_ENV=production`) at the production project, then:
    ```bash
-   neon checkout production        # points .env.local at production; switch back afterwards
    npm run db:deploy               # prisma migrate deploy: only committed migrations
-   neon checkout dev
    ```
-   **Never run `db:seed` against production.** The seed script refuses to anyway.
+   **Never run `db:seed` against production.** The seed script refuses to anyway (it checks `DATABASE_ENV`).
 3. Recommended:
-   - enable Neon's point-in-time restore window on production;
-   - restrict IP access if your plan allows it;
-   - use a separate branch for every risky migration rehearsal (`neon checkout rehearsal --create`).
+   - enable Point-in-Time Recovery on the production project (paid plans);
+   - add the app's egress IPs to the network restrictions / allow list if your plan supports it;
+   - rehearse every risky migration against a disposable Supabase project or branch first.
 
 ## 2. Environment variables
 
@@ -82,16 +80,16 @@ The app validates its server environment at runtime and refuses to serve pages w
 ## 6. Operating
 
 - **Monitoring.** Watch Vercel logs for `[cron]`, `[trade]`, `[admin]` and `[api/orders]` errors. Add an uptime check on `/` and alerting on 5xx rates.
-- **Ledger integrity.** Run `npm run test:ledger` against a Neon branch copied from production. The ledger triggers enforce integrity continuously; reconcile the `BROKER` and `FEES` system accounts against partner statements.
-- **Backups.** Neon point-in-time restore, plus periodic logical dumps (`pg_dump`) stored encrypted.
-- **Migrations.** Every schema change goes through `prisma/migrations`. Rehearse on a branch, then run `npm run db:deploy`. Never edit production by hand.
+- **Ledger integrity.** Run `npm run test:ledger` against a disposable copy of production (e.g. a restored Supabase project or branch), never production itself. The ledger triggers enforce integrity continuously; reconcile the `BROKER` and `FEES` system accounts against partner statements.
+- **Backups.** Supabase automated backups / Point-in-Time Recovery, plus periodic logical dumps (`pg_dump`) stored encrypted.
+- **Migrations.** Every schema change goes through `prisma/migrations`. Rehearse on a disposable project, then run `npm run db:deploy`. Never edit production by hand.
 
 ## CI
 
 `.github/workflows/ci.yml` runs on every push and pull request:
 
 - `prisma validate`, lint, typecheck, unit tests (Vitest), `npm audit --audit-level=high` and a production build;
-- **optionally**, Playwright smoke tests against a disposable Neon branch. To enable them, set the repo variable `E2E_ENABLED=true` and the secrets `CI_DATABASE_URL`, `CI_DATABASE_URL_UNPOOLED`, `CI_SESSION_SECRET` and `CI_DATA_ENCRYPTION_KEY`. **Never point CI at production.**
+- **optionally**, Playwright smoke tests against a disposable Supabase CI project. To enable them, set the repo variable `E2E_ENABLED=true` and the secrets `CI_DATABASE_URL`, `CI_DATABASE_URL_UNPOOLED`, `CI_SESSION_SECRET` and `CI_DATA_ENCRYPTION_KEY`. **Never point CI at production.**
 
 ## Go-live checklist
 

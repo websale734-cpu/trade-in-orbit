@@ -35,7 +35,7 @@ export async function getHeadlines(limit = 8): Promise<Headline[]> {
 async function fetchFeed(feed: (typeof FEEDS)[number]): Promise<Headline[]> {
   const res = await fetch(feed.url, {
     headers: {
-      "User-Agent": "OrbtradeNews/1.0 (+https://orbtrade.example)",
+      "User-Agent": "TradeInOrbitNews/1.0 (+https://orbtrade.example)",
       Accept: "application/rss+xml, application/xml",
     },
     cache: "no-store",

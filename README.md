@@ -2,7 +2,7 @@
 
 A crypto brokerage web platform: registration and KYC, funded accounts, trading, withdrawals, rewards, support, a public API and a full admin panel.
 
-Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **PostgreSQL on Neon via Prisma 7**.
+Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **PostgreSQL on Supabase via Prisma 7**.
 
 > **Before going live:** operating a crypto brokerage requires licensing (e.g. VASP / money-transmitter registration) in each jurisdiction you serve, plus custody and liquidity partners. The legal pages are placeholders for lawyer-reviewed text. Payment and blockchain integrations run behind provider interfaces and must be connected to real, contracted providers.
 
@@ -21,15 +21,19 @@ Built with **Next.js 16 (App Router) + TypeScript + Tailwind CSS v4**, with **Po
 
 ## Getting started
 
-Requirements: **Node.js 20.9+** (developed on Node 24) and the [Neon CLI](https://neon.com/docs/cli/install) (`npm i -g neon`).
+Requirements: **Node.js 20.9+** (developed on Node 24) and a [Supabase](https://supabase.com) project.
 
 ```bash
 npm install                     # also generates the Prisma client
-neon login                      # once, opens a browser
-neon checkout dev               # use the dev branch; writes DATABASE_URL etc. to .env.local
 ```
 
-Then add the non-Neon variables to `.env.local` (see [`.env.example`](.env.example)). For local development, at minimum:
+Copy the Postgres connection strings from the Supabase dashboard (Project Settings → Database → Connection string) into `.env.local`: the Transaction pooler URL (port 6543, with `?pgbouncer=true`) as `DATABASE_URL`, and the direct/Session URL (port 5432) as `DATABASE_URL_UNPOOLED`. Then create the schema:
+
+```bash
+npm run db:deploy               # applies migrations to the Supabase database
+```
+
+Then add the remaining variables to `.env.local` (see [`.env.example`](.env.example)). For local development, at minimum:
 
 ```bash
 SESSION_SECRET=<random, see .env.example>
@@ -63,14 +67,14 @@ npm run dev                     # http://localhost:3000
 | `npm run db:studio` | Browse the database |
 | `npm test` | Unit tests (Vitest) |
 | `npm run test:e2e` | Playwright smoke tests (reuses a running dev server; set `E2E_EMAIL`/`E2E_PASSWORD` for signed-in checks) |
-| `npm run test:ledger` | Integration test that attacks the ledger's database guarantees (dev branches only) |
+| `npm run test:ledger` | Integration test that attacks the ledger's database guarantees (development databases only) |
 
-## Database branches (Neon)
+## Databases (Supabase)
 
-- `production`: the live database. Only receives committed migrations via `npm run db:deploy`. Never seeded.
-- `dev`: day-to-day development (copy-on-write clone of production). Seed data and test accounts live here.
+- **production**: the live Supabase project. Only receives committed migrations via `npm run db:deploy`. Never seeded.
+- **development**: a separate Supabase project for day-to-day work. Seed data and test accounts live here.
 
-Switch with `neon checkout <branch>`; it rewrites the connection strings in `.env.local`. For risky migrations, create a throwaway branch: `neon checkout my-feature --create`.
+Point `.env.local` at a database by pasting its connection strings from the Supabase dashboard, and set `DATABASE_ENV` to label it (the seed/reset scripts refuse `production`). For risky migrations, rehearse against a disposable project or a branch created from the Supabase dashboard.
 
 ## Environment variables
 
@@ -85,8 +89,8 @@ All variables are documented in [`.env.example`](.env.example). Secrets are read
 | `COINGECKO_API_PLAN` | 1 | no | `demo` (default) or `pro`, which picks the auth header |
 | `COINGECKO_API_BASE` | 1 | no | CoinGecko base URL (change for the Pro API) |
 | `NEXT_PUBLIC_BINANCE_WS_URL` | 1 | no | Real-time price WebSocket (Binance public market data) |
-| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | 2 | yes | Neon pooled (app) / direct (migrations) connection strings |
-| `NEON_BRANCH` | 2 | no | Linked branch name; the seed script refuses `production` |
+| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | 2 | yes | Supabase pooled (app) / direct (migrations) connection strings |
+| `DATABASE_ENV` | 2 | no | Free-form label for the target database; the seed/reset scripts refuse `production` |
 | `SESSION_SECRET` | 2 | yes | Keys the HMACs of session tokens and one-time codes |
 | `DATA_ENCRYPTION_KEY` | 2 | yes | AES-256-GCM key for TOTP secrets and KYC files. **Back it up.** |
 | `SESSION_IDLE_MINUTES` / `SESSION_MAX_HOURS` | 2 | no | Idle timeout (30) / absolute session length (12) |
@@ -217,7 +221,7 @@ tests/
 - **Settings** (fees, KYC limits, rewards) are admin-editable, validated against strict schemas and effective within 15 s. The public fee table reads them live. **Coins & pairs**: enable/disable each coin and its trading pair.
 - **Content.** Countdown promotions, blog and academy articles (Markdown), FAQ (replaces the built-in FAQ once any entry exists) and testimonial moderation. Customers submit reviews from the dashboard; only approved reviews from real users are public.
 - **Overview.** Customers, 30-day trading volume, fee revenue, deposits and withdrawals, queue counts, and daily volume and sign-up charts.
-- **Resilience.** Database connection-acquisition failures (e.g. Neon waking from scale-to-zero) are retried once; they occur before any SQL is sent, so they're safe. There's also a branded error page.
+- **Resilience.** Database connection-acquisition failures (e.g. a transient pooler hiccup or a paused project waking up) are retried once; they occur before any SQL is sent, so they're safe. There's also a branded error page.
 - **Moved to Phase 7:** support ticket inbox and live chat (built with the customer-facing support system).
 
 ### Phase 6: rewards and automation
@@ -258,8 +262,8 @@ tests/
   - Playwright smoke tests on desktop and mobile that fail on any CSP violation.
   - The ledger integration test.
   - The Phase 6–8 browser end-to-end run passed 62/63 checks. The one failure was the test's own assertion; the feature was verified manually.
-- **CI.** GitHub Actions (`.github/workflows/ci.yml`) runs prisma validate, lint, typecheck, unit tests, audit and build, plus optional e2e against a disposable Neon branch.
-- **Deployment.** **[DEPLOYMENT.md](DEPLOYMENT.md)** covers Vercel + Neon, environment variables, migrations, cron (`vercel.json`), Stripe webhooks, providers and the go-live checklist.
+- **CI.** GitHub Actions (`.github/workflows/ci.yml`) runs prisma validate, lint, typecheck, unit tests, audit and build, plus optional e2e against a disposable Supabase CI project.
+- **Deployment.** **[DEPLOYMENT.md](DEPLOYMENT.md)** covers Vercel + Supabase, environment variables, migrations, cron (`vercel.json`), Stripe webhooks, providers and the go-live checklist.
 
 ### Postponed
 

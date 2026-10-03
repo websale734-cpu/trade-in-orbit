@@ -3,7 +3,7 @@ import { Briefcase } from "lucide-react";
 import { Container } from "@/components/ui/section";
 import { siteConfig } from "@/config/site";
 
-export const metadata: Metadata = { title: "Careers", description: "Work at Orbtrade." };
+export const metadata: Metadata = { title: "Careers", description: "Work at Trade In Orbit." };
 
 export default function CareersPage() {
   return (

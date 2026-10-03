@@ -24,7 +24,7 @@ export const userTradeFees = tradeFees;
 /**
  * Brokerage trading engine.
  *
- * Orbtrade is the counterparty: trades fill against the BROKER system account,
+ * Trade In Orbit is the counterparty: trades fill against the BROKER system account,
  * which represents inventory held with liquidity partners (it may go negative
  * in the ledger; treasury rebalances it off-platform). Every trade is one
  * balanced journal entry: the user's two legs, the broker's two legs and the fee.

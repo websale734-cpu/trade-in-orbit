@@ -10,7 +10,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black_20%,transparent_65%)]" />
 
       <header className="relative mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" aria-label="Orbtrade home">
+        <Link href="/" aria-label="Trade In Orbit home">
           <Logo />
         </Link>
         <ThemeToggle />

@@ -4,9 +4,14 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { FormMessage, SubmitButton, inputClasses } from "@/components/ui/form";
 import { useI18n } from "@/i18n/client";
 import { fmt } from "@/i18n/format";
+import { assetLabel } from "@/lib/assets";
 import { transfer } from "./actions";
 
-type Acct = { id: string; name: string; balances: { code: string; amount: string; decimals: number }[] };
+type Acct = {
+  id: string;
+  name: string;
+  balances: { code: string; amount: string; decimals: number; name?: string }[];
+};
 
 /** "1.500000" -> "1.5", "100" -> "100" (only trims after a decimal point). */
 function trimZeros(v: string) {
@@ -20,15 +25,31 @@ function trimZeros(v: string) {
  * network retry can never post the same transfer twice (the ledger rejects a
  * repeated key).
  */
-export function TransferForm({ accounts }: { accounts: Acct[] }) {
+export function TransferForm({
+  accounts,
+  initial = {},
+}: {
+  accounts: Acct[];
+  /** Pre-selection (e.g. from an account or coin page); ignored where it doesn't fit. */
+  initial?: { fromId?: string; toId?: string; assetCode?: string };
+}) {
   const { dict } = useI18n();
   const t = dict.app.accounts;
   const [state, action] = useActionState(transfer, undefined);
-  const funded = accounts.find((a) => a.balances.length > 0) ?? accounts[0];
-  const [fromId, setFromId] = useState(funded.id);
-  const [toId, setToId] = useState(accounts.find((a) => a.id !== funded.id)!.id);
+  const others = (id?: string) => accounts.filter((a) => a.id !== id);
+  const start =
+    accounts.find((a) => a.id === initial.fromId) ??
+    others(initial.toId).find((a) => a.balances.length > 0) ??
+    others(initial.toId)[0] ??
+    accounts[0];
+  const [fromId, setFromId] = useState(start.id);
+  const [toId, setToId] = useState(
+    others(start.id).find((a) => a.id === initial.toId)?.id ?? others(start.id)[0].id,
+  );
   const from = accounts.find((a) => a.id === fromId)!;
-  const [assetCode, setAssetCode] = useState(from.balances[0]?.code ?? "");
+  const [assetCode, setAssetCode] = useState(
+    from.balances.find((b) => b.code === initial.assetCode)?.code ?? from.balances[0]?.code ?? "",
+  );
   const [amount, setAmount] = useState("");
   // Created at submit time (not during render, which would differ between server
   // and client). Reused until a transfer completes, so retries can't double-post.
@@ -107,7 +128,7 @@ export function TransferForm({ accounts }: { accounts: Acct[] }) {
       {from.balances.length === 0 ? (
         <p className="rounded-xl border border-line bg-surface p-3 text-sm text-muted">{t.empty}</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-[8rem_1fr]">
+        <div className="grid gap-4 sm:grid-cols-[minmax(8rem,13rem)_1fr]">
           <div>
             <label htmlFor="assetCode" className="mb-1.5 block text-sm font-medium">
               {t.asset}
@@ -121,7 +142,7 @@ export function TransferForm({ accounts }: { accounts: Acct[] }) {
             >
               {from.balances.map((b) => (
                 <option key={b.code} value={b.code}>
-                  {b.code}
+                  {b.name ? assetLabel(b.code, b.name) : b.code}
                 </option>
               ))}
             </select>

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { PageIntro } from "@/components/accounts/page-parts";
 import { KycGate, SandboxBadge } from "@/components/app/kyc-gate";
+import { getDictionary } from "@/i18n/server";
 import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
@@ -24,10 +26,12 @@ const STATUS_STYLE = {
 export default async function DepositPage({ searchParams }: PageProps<"/deposit">) {
   const { user } = await requireUser("/deposit");
   const sp = await searchParams;
+  const t = (await getDictionary()).app.accounts;
+  const intro = { title: t.actions.deposit, intro: t.depositIntro, back: { href: "/accounts", label: t.allAccounts } };
   if (user.kycStatus !== "APPROVED")
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Deposit</h1>
+        <PageIntro {...intro} />
         <KycGate action="deposit" status={user.kycStatus} />
       </div>
     );
@@ -42,7 +46,7 @@ export default async function DepositPage({ searchParams }: PageProps<"/deposit"
   const devTools = process.env.NODE_ENV !== "production";
 
   const bank = {
-    accountName: process.env.BANK_ACCOUNT_NAME || "Orbtrade Client Money (SANDBOX)",
+    accountName: process.env.BANK_ACCOUNT_NAME || "Trade In Orbit Client Money (SANDBOX)",
     bankName: process.env.BANK_NAME || "Sandbox Bank",
     accountNumber: process.env.BANK_ACCOUNT_NUMBER || "00000000",
     routing: process.env.BANK_ROUTING || "00-00-00",
@@ -51,16 +55,15 @@ export default async function DepositPage({ searchParams }: PageProps<"/deposit"
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Deposit</h1>
-        <p className="mt-1 text-sm text-muted">
-          Deposits are credited once the payment is confirmed. 24-hour limit remaining:{" "}
+      <PageIntro {...intro}>
+        <p className="text-sm text-muted">
+          24-hour limit remaining:{" "}
           <strong className="text-fg">
             ${limits.depositRemaining.toLocaleString("en-US", { maximumFractionDigits: 2 })}
           </strong>{" "}
           of ${limits.depositDaily.toLocaleString("en-US")}.
         </p>
-      </div>
+      </PageIntro>
       {sp.status === "processing" && (
         <p className="rounded-xl border border-up/30 bg-up/10 p-3 text-sm" role="status">
           Payment received by our card processor. Your deposit will be credited as soon as it&apos;s confirmed.

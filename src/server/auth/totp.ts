@@ -9,7 +9,7 @@ import { decryptString, encryptString, hmac, safeEqual } from "../crypto";
  * Authenticator-app 2FA (RFC 6238 TOTP: SHA-1, 6 digits, 30 s — what Google
  * Authenticator, 1Password, Authy, etc. expect). Secrets are encrypted at rest.
  */
-const ISSUER = "Orbtrade";
+const ISSUER = "Trade In Orbit";
 
 function totpFor(secretBase32: string, label: string) {
   return new TOTP({

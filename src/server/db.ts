@@ -4,7 +4,7 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { env } from "./env";
 
 /**
- * Prisma client (one per server process), using Neon's pooled connection string.
+ * Prisma client (one per server process), using Supabase's pooled connection string.
  *
  * Created lazily on first query, not at import time, so `next build` can
  * analyse routes without database credentials or runtime secrets. In
@@ -14,9 +14,10 @@ import { env } from "./env";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 /**
- * Failures while *acquiring* a connection (e.g. Neon waking from scale-to-zero).
- * These happen before any SQL reaches the database, so a retry can't apply a
- * write twice. Errors after a query was sent are never retried.
+ * Failures while *acquiring* a connection (e.g. a transient pooler hiccup or a
+ * paused project waking up). These happen before any SQL reaches the database,
+ * so a retry can't apply a write twice. Errors after a query was sent are
+ * never retried.
  */
 function isConnectError(err: unknown): boolean {
   const text = `${err instanceof Error ? err.message : err} ${String((err as { cause?: unknown })?.cause ?? "")}`;

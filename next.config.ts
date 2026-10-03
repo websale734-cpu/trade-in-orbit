@@ -17,6 +17,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Hide the floating Next.js dev-tools button in development.
+  devIndicators: false,
   // KYC uploads: up to three 5 MB files per submission, plus form overhead.
   experimental: {
     serverActions: { bodySizeLimit: "16mb" },

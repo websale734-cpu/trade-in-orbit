@@ -4,7 +4,7 @@ import { Mail, MessageCircle, Phone, Rocket } from "lucide-react";
 import { Container } from "@/components/ui/section";
 import { siteConfig } from "@/config/site";
 
-export const metadata: Metadata = { title: "Contact", description: "How to reach Orbtrade." };
+export const metadata: Metadata = { title: "Contact", description: "How to reach Trade In Orbit." };
 
 export default function ContactPage() {
   const rows = [
@@ -13,7 +13,7 @@ export default function ContactPage() {
     ...(siteConfig.supportPhone
       ? [{ icon: Phone, title: "Phone", body: siteConfig.supportPhone, href: `tel:${siteConfig.supportPhone.replace(/[^\d+]/g, "")}`, label: "Call us" }]
       : []),
-    { icon: Rocket, title: "Projects", body: "Want your coin listed on Orbtrade?", href: "/listing-request", label: "Request a listing" },
+    { icon: Rocket, title: "Projects", body: "Want your coin listed on Trade In Orbit?", href: "/listing-request", label: "Request a listing" },
   ];
   return (
     <Container className="max-w-3xl py-16 sm:py-24">

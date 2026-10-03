@@ -6,7 +6,7 @@ import { helpTopics } from "@/config/help";
 import { getFaq } from "@/server/content";
 import { getDictionary } from "@/i18n/server";
 
-export const metadata: Metadata = { title: "FAQ", description: "Frequently asked questions about Orbtrade." };
+export const metadata: Metadata = { title: "FAQ", description: "Frequently asked questions about Trade In Orbit." };
 
 export default async function FaqPage() {
   const [dict, managed] = await Promise.all([getDictionary(), getFaq()]);

@@ -7,7 +7,7 @@ import { randomCode } from "../crypto";
  *
  * Providers (SMS_PROVIDER):
  *   - twilio  : Twilio Verify. Twilio generates, sends and checks the code, so we
- *               never see it. Orbtrade still enforces its own expiry, resend
+ *               never see it. Trade In Orbit still enforces its own expiry, resend
  *               cooldown and attempt limits in the database.
  *   - console : development only. We generate the code, print it to the server
  *               console and verify it ourselves.
@@ -22,7 +22,7 @@ export async function startSmsVerification(phone: string): Promise<SmsStartResul
   const e = env();
   if (e.SMS_PROVIDER === "console") {
     const code = randomCode();
-    console.info(`\n[sms:console] To: ${phone}\nYour Orbtrade verification code is ${code}\n`);
+    console.info(`\n[sms:console] To: ${phone}\nYour Trade In Orbit verification code is ${code}\n`);
     return { mode: "local", code };
   }
   await twilio(`Services/${e.TWILIO_VERIFY_SERVICE_SID}/Verifications`, { To: phone, Channel: "sms" });

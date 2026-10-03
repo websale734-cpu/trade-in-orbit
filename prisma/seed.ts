@@ -5,8 +5,8 @@
  *
  * Creates demo accounts that are already through onboarding, with Trading and
  * Savings accounts, demo balances and a watchlist. Refuses to run when
- * NODE_ENV=production or when the linked Neon branch is `production`. Seed
- * data lives only on dev branches.
+ * NODE_ENV=production or when DATABASE_ENV=production. Seed data lives only on
+ * development databases.
  *
  * Balances are created the only way the ledger allows: balanced DEV_SEED
  * journal entries from a dev-only DEV_FAUCET system account. Safe to re-run
@@ -21,8 +21,8 @@ import { Prisma, PrismaClient } from "../src/generated/prisma/client";
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
 
-if (process.env.NODE_ENV === "production" || process.env.NEON_BRANCH === "production") {
-  console.error("Refusing to seed: this looks like production. Seed data is for development branches only.");
+if (process.env.NODE_ENV === "production" || process.env.DATABASE_ENV === "production") {
+  console.error("Refusing to seed: this looks like production. Seed data is for development databases only.");
   process.exit(1);
 }
 

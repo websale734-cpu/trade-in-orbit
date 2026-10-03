@@ -2,16 +2,19 @@ import { ArrowRight, Check } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/section";
 import { HeroChartCard } from "@/components/market/hero-chart-card";
+import { HeroVideo } from "@/components/landing/hero-video";
 import type { Dictionary } from "@/i18n/dictionaries/en";
 
 export function Hero({ dict }: { dict: Dictionary }) {
   const h = dict.hero;
   return (
-    <section className="relative overflow-hidden">
-      {/* Background: dotted grid + two soft brand glows */}
-      <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_75%)]" />
+    // Always dark-themed: the copy sits on video under a dark overlay in both themes.
+    <section data-theme="dark" className="relative overflow-hidden bg-black text-fg">
+      {/* Background: looping video, dark overlay (heavier on the copy side), faint brand glow */}
+      <HeroVideo />
+      <div className="pointer-events-none absolute inset-0 bg-black/55" />
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-black/50 to-transparent" />
       <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,var(--glow-violet),transparent)] blur-3xl" />
-      <div className="pointer-events-none absolute top-40 -right-40 h-[380px] w-[380px] rounded-full bg-[radial-gradient(closest-side,var(--glow-cyan),transparent)] blur-3xl" />
 
       <Container className="relative grid items-center gap-12 pt-12 pb-16 sm:pt-20 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pt-24 lg:pb-24">
         <div className="animate-fade-up">

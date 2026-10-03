@@ -124,6 +124,7 @@ export async function decideKyc(_p: FormState | undefined, fd: FormData): Promis
       { userId: sub.userId, reason: why },
     );
     revalidatePath("/admin/kyc");
+    revalidatePath(`/admin/users/${sub.userId}`);
     return {
       message:
         decision === "APPROVED"
@@ -360,7 +361,7 @@ export async function moderateTestimonial(fd: FormData): Promise<void> {
     await notify(t.userId, {
       type: "SYSTEM",
       title: "Your review is live",
-      body: "Thanks for sharing your experience with Orbtrade.",
+      body: "Thanks for sharing your experience with Trade In Orbit.",
       link: "/",
     }).catch(() => {});
   revalidatePath("/admin/content");

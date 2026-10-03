@@ -101,7 +101,7 @@ export async function removePushSubscription(endpoint: string): Promise<void> {
 export async function sendTestPush(): Promise<{ sent: number }> {
   const { user } = await requireUser();
   const { sent } = await sendPushToUser(user.id, {
-    title: "Orbtrade test notification",
+    title: "Trade In Orbit test notification",
     body: "Push notifications are working on this device.",
     link: "/notifications",
   });

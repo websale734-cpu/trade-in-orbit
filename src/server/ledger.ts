@@ -215,8 +215,9 @@ export async function adjustBalance(input: {
     db.asset.findUnique({ where: { code: input.assetCode } }),
   ]);
   if (!account || !asset) throw new LedgerError("Account or asset not found.", "NOT_FOUND");
-  const clean = input.amount.trim();
-  if (!/^-?\d+(\.\d+)?$/.test(clean)) throw new LedgerError("Enter a signed amount, e.g. 25 or -25.", "INVALID_AMOUNT");
+  // A leading "+" is accepted: the admin form's placeholder suggests "+25 or -25".
+  const clean = input.amount.trim().replace(/^\+(?=\d)/, "");
+  if (!/^-?\d+(\.\d+)?$/.test(clean)) throw new LedgerError("Enter a signed amount, e.g. +25 or -25.", "INVALID_AMOUNT");
   const amount = new Decimal(clean);
   if (amount.isZero() || amount.decimalPlaces() > asset.decimals)
     throw new LedgerError(`Use a non-zero amount with at most ${asset.decimals} decimals.`, "INVALID_AMOUNT");

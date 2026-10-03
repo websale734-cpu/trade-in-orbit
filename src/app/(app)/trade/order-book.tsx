@@ -9,8 +9,8 @@ type Book = { bids: Level[]; asks: Level[]; source: string };
 /**
  * Order book: top 12 levels each side from the reference market, refreshed
  * every 5 seconds. Depth bars show cumulative size. Labelled with its source,
- * because Orbtrade fills orders against its liquidity partners, not against
- * other Orbtrade users.
+ * because Trade In Orbit fills orders against its liquidity partners, not against
+ * other Trade In Orbit users.
  */
 export function OrderBook({ coins }: { coins: string[] }) {
   const [asset, setAsset] = useState(coins[0] ?? "BTC");

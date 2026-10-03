@@ -9,7 +9,7 @@ import type { KycDocumentType, KycFileKind } from "@/generated/prisma/client";
  * Files are checked by their actual content (magic bytes), not by extension or
  * the browser-supplied MIME type, then AES-256-GCM encrypted before storage.
  * They're stored in Postgres, which is simple and adequate at launch volume. To
- * move to object storage later (e.g. a private Neon bucket or S3), swap
+ * move to object storage later (e.g. a private Supabase Storage bucket or S3), swap
  * `storeFile` and keep the metadata table.
  */
 export const KYC_MAX_BYTES = 5 * 1024 * 1024;

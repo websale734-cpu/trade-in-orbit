@@ -22,7 +22,7 @@ export function TicketForm({ categories }: { categories: readonly string[] }) {
         </select>
       </div>
       <MessageBox name="body" label="How can we help?" defaultValue={v?.body} error={state?.fieldErrors?.body} />
-      <p className="text-xs text-subtle">Never share your password, 2FA codes or recovery codes. Orbtrade staff will never ask for them.</p>
+      <p className="text-xs text-subtle">Never share your password, 2FA codes or recovery codes. Trade In Orbit staff will never ask for them.</p>
       <SubmitButton variant="secondary">Send to support</SubmitButton>
     </form>
   );

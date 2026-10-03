@@ -98,9 +98,9 @@ async function newPdf(title: string, subtitle: string): Promise<Pdf> {
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   doc.setTitle(title);
-  doc.setProducer("Orbtrade");
+  doc.setProducer("Trade In Orbit");
   const pdf = { doc, page: doc.addPage([W, H]), font, bold, y: H - M };
-  pdf.page.drawText("Orbtrade", { x: M, y: pdf.y, size: 18, font: bold, color: rgb(0.43, 0.16, 0.85) });
+  pdf.page.drawText("Trade In Orbit", { x: M, y: pdf.y, size: 18, font: bold, color: rgb(0.43, 0.16, 0.85) });
   pdf.y -= 26;
   pdf.page.drawText(title, { x: M, y: pdf.y, size: 13, font: bold });
   pdf.y -= 16;
@@ -304,7 +304,7 @@ export async function sendMonthlyStatementNotices(): Promise<number> {
     }
     const label = start.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
     await notify(u.id, { type: "ACCOUNT", title: `Your ${label} statement is ready`, body: "Download it from History → Statements.", link: "/history?tab=statements" }).catch(() => {});
-    await sendEmail(simpleNoticeEmail(u.email, `Your Orbtrade statement for ${label}`, `Your account statement for ${label} is ready to download.`, "/history?tab=statements", "View statements")).catch(() => {});
+    await sendEmail(simpleNoticeEmail(u.email, `Your Trade In Orbit statement for ${label}`, `Your account statement for ${label} is ready to download.`, "/history?tab=statements", "View statements")).catch(() => {});
     sent++;
   }
   return sent;

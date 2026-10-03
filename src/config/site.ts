@@ -3,7 +3,7 @@
  * (see .env.example); everything else lives here.
  */
 export const siteConfig = {
-  name: "Orbtrade",
+  name: "Trade In Orbit",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@orbtrade.example",
   /** Shown in the help centre (Phase 7). Leave empty to hide. */

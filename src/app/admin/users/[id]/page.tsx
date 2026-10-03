@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { can, requirePermission } from "@/server/admin/rbac";
 import { db } from "@/server/db";
 import { LocalTime } from "@/components/ui/local-time";
-import { ActionForm, adminButton, adminInput } from "@/components/admin/action-form";
+import { ActionForm } from "@/components/admin/action-form";
+import { adminButton, adminInput } from "@/components/admin/styles";
 import { cn } from "@/lib/utils";
-import { adjustUserBalance, setUserRole, setUserStatus } from "../../actions";
+import { adjustUserBalance, decideKyc, setUserRole, setUserStatus } from "../../actions";
 
 export const metadata = { title: "User" };
 
@@ -24,6 +25,7 @@ export default async function AdminUser({ params }: PageProps<"/admin/users/[id]
   if (!u) notFound();
   const assets = await db.asset.findMany({ orderBy: { sortOrder: "asc" }, select: { code: true } });
   const realAccounts = u.accounts.filter((a) => a.type !== "DEMO");
+  const latestKyc = u.kycSubmissions[0];
 
   return (
     <div className="space-y-6">
@@ -109,13 +111,9 @@ export default async function AdminUser({ params }: PageProps<"/admin/users/[id]
                 </select>
                 <input name="amount" placeholder="+25 or -25" className={adminInput} aria-label="Signed amount" />
               </div>
-              <input
-                name="reason"
-                placeholder="Reason (min 10 characters)"
-                className={adminInput}
-                required
-                minLength={10}
-              />
+              {/* No minLength here: the ledger enforces 10 characters and returns a clear
+                  message. A browser minLength blocked the submit before the server saw it. */}
+              <input name="reason" placeholder="Reason (min 10 characters)" className={adminInput} required />
               <button className={cn(adminButton, "bg-surface-strong")}>Post adjustment</button>
             </ActionForm>
           )}
@@ -131,6 +129,38 @@ export default async function AdminUser({ params }: PageProps<"/admin/users/[id]
                 </select>
                 <button className={cn(adminButton, "bg-surface-strong")}>Save</button>
               </div>
+            </ActionForm>
+          )}
+          {can(admin, "kyc.review") && latestKyc && (
+            // A single form that stays mounted once the submission is decided, so the
+            // success message survives the refresh that removes the controls.
+            <ActionForm action={decideKyc}>
+              <h2 className="font-semibold">KYC review</h2>
+              <p className="text-xs text-muted">
+                {latestKyc.documentType.replace("_", " ")} issued in {latestKyc.documentCountry} ·{" "}
+                <Link href={`/admin/kyc?id=${latestKyc.id}`} className="text-accent hover:underline">
+                  View documents
+                </Link>
+              </p>
+              {latestKyc.status === "PENDING" && (
+                <>
+                  <input type="hidden" name="submissionId" value={latestKyc.id} />
+                  <input
+                    name="reason"
+                    placeholder="Rejection reason (shown to the customer)"
+                    className={adminInput}
+                    aria-label="Rejection reason"
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button name="decision" value="APPROVED" className={cn(adminButton, "w-full bg-up/15 text-up")}>
+                      Approve identity
+                    </button>
+                    <button name="decision" value="REJECTED" className={cn(adminButton, "w-full bg-down/15 text-down")}>
+                      Reject
+                    </button>
+                  </div>
+                </>
+              )}
             </ActionForm>
           )}
         </section>
@@ -164,13 +194,18 @@ export default async function AdminUser({ params }: PageProps<"/admin/users/[id]
               </li>
             ))}
           </ul>
-          {u.kycSubmissions.length > 0 && (
-            <p className="mt-4 text-sm">
-              Latest KYC: <strong>{u.kycSubmissions[0].status}</strong>{" "}
-              <Link href={`/admin/kyc?id=${u.kycSubmissions[0].id}`} className="text-accent hover:underline">
-                View documents
-              </Link>
-            </p>
+          {latestKyc && (
+            <div className="mt-4 text-sm">
+              <p>
+                Latest KYC: <strong>{latestKyc.status}</strong>{" "}
+                <Link href={`/admin/kyc?id=${latestKyc.id}`} className="text-accent hover:underline">
+                  View documents
+                </Link>
+              </p>
+              {latestKyc.status === "REJECTED" && latestKyc.rejectionReason && (
+                <p className="mt-1 text-xs text-down">Rejection reason: {latestKyc.rejectionReason}</p>
+              )}
+            </div>
           )}
         </section>
       </div>

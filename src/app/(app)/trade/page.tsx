@@ -141,7 +141,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
             </ul>
           )}
           <p className="mt-3 text-xs text-subtle">
-            Limit orders fill at your price against Orbtrade&apos;s liquidity once the market reaches it. Funds stay
+            Limit orders fill at your price against Trade In Orbit&apos;s liquidity once the market reaches it. Funds stay
             reserved until then.
           </p>
         </section>

@@ -39,7 +39,7 @@ jobs:
     name: Playwright smoke tests
     needs: check
     runs-on: ubuntu-latest
-    # Needs a disposable database: set the DATABASE_URL secret to a Neon *preview/CI branch*, never production.
+    # Needs a disposable database: point the CI_DATABASE_URL secret at a dedicated Supabase CI project, never production.
     if: ${{ vars.E2E_ENABLED == 'true' }}
     env:
       CI: "true"

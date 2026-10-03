@@ -3,9 +3,9 @@
  *
  *   npm run test:ledger
  *
- * Runs against the linked Neon branch (refuses `production`). It creates a
- * throwaway user; because the ledger is append-only, that test data stays on
- * the dev branch (reset the branch from its parent to clear it).
+ * Runs against the development database (refuses `production`). It creates a
+ * throwaway user; because the ledger is append-only, that test data persists
+ * (use a disposable dev database if you need a clean slate).
  */
 import { config } from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -13,7 +13,7 @@ import { Prisma, PrismaClient } from "../src/generated/prisma/client";
 
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
-if (process.env.NODE_ENV === "production" || process.env.NEON_BRANCH === "production") {
+if (process.env.NODE_ENV === "production" || process.env.DATABASE_ENV === "production") {
   console.error("Refusing to run ledger tests against production.");
   process.exit(1);
 }

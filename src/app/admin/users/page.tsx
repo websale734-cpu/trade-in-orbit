@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { requirePermission } from "@/server/admin/rbac";
 import { db } from "@/server/db";
-import { LocalTime } from "@/components/ui/local-time";
-import { adminInput } from "@/components/admin/action-form";
-import { cn } from "@/lib/utils";
+import { adminInput } from "@/components/admin/styles";
+import { UserRow } from "./user-row";
 
 export const metadata = { title: "Users" };
 
@@ -53,24 +51,7 @@ export default async function AdminUsers({ searchParams }: PageProps<"/admin/use
           </thead>
           <tbody>
             {users.map((u) => (
-              <tr key={u.id} className="border-b border-line last:border-0 hover:bg-surface">
-                <td className="px-4 py-3">
-                  <Link href={`/admin/users/${u.id}`} className="font-medium hover:text-accent">
-                    {u.name}
-                  </Link>
-                  <div className="text-xs text-muted">{u.email}</div>
-                </td>
-                <td className="px-4 py-3 text-xs">{u.role}</td>
-                <td
-                  className={cn("px-4 py-3 text-xs font-semibold", u.status === "SUSPENDED" ? "text-down" : "text-up")}
-                >
-                  {u.status}
-                </td>
-                <td className="px-4 py-3 text-xs">{u.kycStatus}</td>
-                <td className="px-4 py-3 text-xs text-muted">
-                  <LocalTime date={u.createdAt.toISOString()} />
-                </td>
-              </tr>
+              <UserRow key={u.id} u={{ ...u, createdAt: u.createdAt.toISOString() }} />
             ))}
             {users.length === 0 && (
               <tr>

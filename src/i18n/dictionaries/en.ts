@@ -6,9 +6,9 @@
  */
 const en = {
   meta: {
-    title: "Orbtrade — Buy, sell and hold crypto with confidence",
+    title: "Trade In Orbit — Buy, sell and hold crypto with confidence",
     description:
-      "Orbtrade is a crypto brokerage for buying, selling, swapping and holding digital assets, with verified accounts, transparent fees and bank-grade security controls.",
+      "Trade In Orbit is a crypto brokerage for buying, selling, swapping and holding digital assets, with verified accounts, transparent fees and bank-grade security controls.",
   },
   common: {
     createAccount: "Create account",
@@ -112,7 +112,7 @@ const en = {
   },
   testimonials: {
     title: "What our customers say",
-    subtitle: "Reviews from verified Orbtrade customers.",
+    subtitle: "Reviews from verified Trade In Orbit customers.",
     emptyTitle: "No reviews yet",
     emptyBody:
       "We only publish genuine reviews from verified customers. Once real reviews are submitted and approved, they'll appear here.",
@@ -138,7 +138,7 @@ const en = {
         a: "Bank transfer, debit or credit card, mobile money and crypto deposits. Availability can vary by country.",
       },
       {
-        q: "Can I try Orbtrade without real money?",
+        q: "Can I try Trade In Orbit without real money?",
         a: "Yes. Demo mode gives you virtual funds to practise with. Everything in demo mode is clearly labelled DEMO and never touches your real balance.",
       },
       {
@@ -186,7 +186,7 @@ const en = {
   legal: {
     placeholderTitle: "Draft placeholder",
     placeholderBody:
-      "This page is a placeholder. The final text must be written and reviewed by qualified legal counsel for each jurisdiction Orbtrade operates in before launch.",
+      "This page is a placeholder. The final text must be written and reviewed by qualified legal counsel for each jurisdiction Trade In Orbit operates in before launch.",
     lastUpdated: "Last updated",
     pages: {
       terms: "Terms of Service",
@@ -197,7 +197,7 @@ const en = {
   },
   placeholder: {
     title: "This area is under construction",
-    body: "This part of Orbtrade is being built in an upcoming phase.",
+    body: "This part of Trade In Orbit is being built in an upcoming phase.",
   },
   auth: {
     steps: ["Account", "Email", "Phone", "2FA", "Identity"],
@@ -221,12 +221,12 @@ const en = {
     },
     login: {
       title: "Welcome back",
-      subtitle: "Log in to your Orbtrade account.",
+      subtitle: "Log in to your Trade In Orbit account.",
       email: "Email",
       password: "Password",
       forgot: "Forgot password?",
       submit: "Log in",
-      noAccount: "New to Orbtrade?",
+      noAccount: "New to Trade In Orbit?",
       expired: "Your session ended. Please log in again.",
     },
     twoFactorLogin: {
@@ -396,6 +396,88 @@ const en = {
         DEV_SEED: "Development funding",
         REWARD: "Reward",
       },
+      // Overview, account and coin pages.
+      overviewSubtitle: "Everything you own on Trade In Orbit, in one place.",
+      totalBalance: "Total balance",
+      totalCaption: "Across all your accounts",
+      liveNote: "Changes with live crypto prices",
+      yourAccounts: "Your accounts",
+      typeHints: {
+        TRADING: "For buying, selling and converting coins",
+        SAVINGS: "For coins you want to keep aside",
+        DEMO: "Practice with virtual money",
+      },
+      viewActivity: "See all activity",
+      openAnother: "Open another account",
+      kycHint: "Verify your identity to deposit and withdraw.",
+      kycCta: "Verify now",
+      emptyTitle: "Your accounts are ready",
+      emptyBody: "Make your first deposit to start building your balance.",
+      firstDeposit: "Make a deposit",
+      allAccounts: "All accounts",
+      accountValue: "Account value",
+      yourCoins: "Your coins",
+      noCoins: "Nothing in this account yet.",
+      noCoinsHint: "Deposit coins, or transfer them from another account.",
+      unpriced: "Price unavailable",
+      actions: {
+        deposit: "Deposit",
+        depositHint: "Add money or coins",
+        convert: "Convert",
+        convertHint: "Swap one coin for another",
+        transfer: "Transfer",
+        transferHint: "Move between your accounts",
+        withdraw: "Withdraw",
+        withdrawHint: "Send to an outside wallet",
+      },
+      coin: {
+        inAccount: "In your {account} account",
+        youHave: "You have",
+        price: "Price today",
+        change24h: "{pct} in the last 24 hours",
+        last7Days: "Last 7 days",
+        cashNote: "US Dollar is your cash balance. You can convert it into coins at any time.",
+        activity: "Recent activity",
+        activityEmpty: "No activity for this coin in this account yet.",
+      },
+      openTitle: "Open another account",
+      openIntro: "Separate accounts help keep money organised, for example one for trading and one for savings.",
+      depositIntro: "Bring money or coins onto Trade In Orbit. Your balance updates once the payment is confirmed.",
+      withdrawIntro: "Send coins to a wallet address outside Trade In Orbit, or money to your bank.",
+    },
+    convert: {
+      title: "Convert",
+      intro: "Swap one coin for another, for example Tether (USDT) into Bitcoin (BTC).",
+      account: "From account",
+      from: "You convert",
+      to: "You receive",
+      amount: "Amount",
+      available: "Available: {amount}",
+      max: "Max",
+      rate: "1 {from} ≈ {rate} {to}",
+      rateLabel: "Rate",
+      estimate: "You'll receive about",
+      fee: "Fee",
+      feeValue: "{amount} ({pct}%)",
+      review: "Review conversion",
+      reviewTitle: "Check the details",
+      reviewNote:
+        "Prices move all the time. If the price changes by more than {pct}% before we finish, nothing happens and we'll ask you to review a new quote.",
+      confirm: "Convert now",
+      edit: "Edit",
+      viewAccount: "View account",
+      again: "Convert again",
+      empty: "This account has no coins to convert yet.",
+      deposit: "Make a deposit",
+      noPrice: "Live prices are unavailable right now. Please try again in a moment.",
+      enterAmount: "Enter an amount to see your quote.",
+      tooMuch: "That's more than you have available.",
+    },
+    transferPage: {
+      title: "Transfer",
+      intro: "Move money between your own accounts. Transfers are instant and free.",
+      needTwo: "You need a second account to transfer between. Opening one takes a few seconds.",
+      open: "Open an account",
     },
     markets: {
       title: "Markets",
@@ -407,13 +489,13 @@ const en = {
       markAll: "Mark all as read",
       empty: "You're all caught up.",
       push: "Push notifications",
-      pushBody: "Get security alerts and account updates on this device, even when Orbtrade is closed.",
+      pushBody: "Get security alerts and account updates on this device, even when Trade In Orbit is closed.",
       pushOn: "On for this device",
       pushEnable: "Turn on",
       pushDisable: "Turn off",
       pushTest: "Send test",
       pushUnsupported:
-        "This browser doesn't support push notifications. On iPhone, add Orbtrade to your Home Screen first.",
+        "This browser doesn't support push notifications. On iPhone, add Trade In Orbit to your Home Screen first.",
       pushDenied: "Notifications are blocked for this site. Allow them in your browser settings to turn this on.",
       pushNotConfigured: "Push notifications aren't configured on this server yet.",
       viewAll: "View all",

@@ -14,16 +14,32 @@ export function ActionForm({
   children: React.ReactNode;
   className?: string;
 }) {
-  const [state, formAction] = useActionState(action, undefined);
+  const [state, formAction, isPending] = useActionState(action, undefined);
   return (
-    <form action={formAction} className={cn("space-y-3", className)}>
-      <FormMessage state={state} />
+    <form
+      action={formAction}
+      // Ignore repeat submits while one is running: actions can take seconds, and a
+      // second click would queue a duplicate (e.g. a second balance adjustment).
+      onSubmit={(e) => {
+        if (isPending) e.preventDefault();
+      }}
+      aria-busy={isPending}
+      className={cn("space-y-3", className, isPending && "cursor-wait opacity-60")}
+    >
+      {isPending ? (
+        <p role="status" className="text-sm text-muted">
+          Working…
+        </p>
+      ) : (
+        <FormMessage state={state} />
+      )}
       {children}
     </form>
   );
 }
 
-export const adminInput =
-  "h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm outline-none focus:border-accent";
-export const adminButton =
-  "inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-colors disabled:opacity-50";
+// adminInput / adminButton now live in ./styles (a server-safe module) and must
+// be imported directly from there. They used to be exported here, but a "use
+// client" module turns every export (even a re-export) into a client reference,
+// so Server Components received a proxy that cn() stringified into a broken
+// className. Importing from ./styles gives Server Components the real string.

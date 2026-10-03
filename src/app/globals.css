@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Orbtrade design system
+ * Trade In Orbit design system
  * ----------------------
  * All colours are CSS variables so the whole UI re-themes by flipping
  * `data-theme` on <html>. Dark is the default; light is opt-in via the toggle.

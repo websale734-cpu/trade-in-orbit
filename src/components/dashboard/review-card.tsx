@@ -22,7 +22,7 @@ export function ReviewCard({ existing }: { existing: "PENDING" | "APPROVED" | nu
   return (
     <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6" aria-label="Share your experience">
       <form action={action} className="space-y-3">
-        <h2 className="font-semibold">Enjoying Orbtrade?</h2>
+        <h2 className="font-semibold">Enjoying Trade In Orbit?</h2>
         <FormMessage state={state} />
         <input type="hidden" name="rating" value={rating} />
         <div className="flex gap-1" role="radiogroup" aria-label="Rating">

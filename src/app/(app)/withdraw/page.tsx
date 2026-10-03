@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Check, X } from "lucide-react";
+import { PageIntro } from "@/components/accounts/page-parts";
 import { KycGate, SandboxBadge } from "@/components/app/kyc-gate";
+import { getDictionary } from "@/i18n/server";
 import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
@@ -25,10 +27,12 @@ const STEP_LABEL: Record<string, string> = {
 
 export default async function WithdrawPage() {
   const { user } = await requireUser("/withdraw");
+  const t = (await getDictionary()).app.accounts;
+  const intro = { title: t.actions.withdraw, intro: t.withdrawIntro, back: { href: "/accounts", label: t.allAccounts } };
   if (user.kycStatus !== "APPROVED")
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Withdraw</h1>
+        <PageIntro {...intro} />
         <KycGate action="withdraw" status={user.kycStatus} />
       </div>
     );
@@ -45,9 +49,8 @@ export default async function WithdrawPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Withdraw</h1>
-        <p className="mt-1 text-sm text-muted">
+      <PageIntro {...intro}>
+        <p className="text-sm text-muted">
           24-hour limit remaining:{" "}
           <strong className="text-fg">
             ${limits.withdrawRemaining.toLocaleString("en-US", { maximumFractionDigits: 2 })}
@@ -55,7 +58,7 @@ export default async function WithdrawPage() {
           of ${limits.withdrawDaily.toLocaleString("en-US")}. Every withdrawal needs{" "}
           {user.totpEnabledAt ? "an authenticator code" : "an emailed code"}.
         </p>
-      </div>
+      </PageIntro>
 
       <WithdrawForm
         accounts={accounts.map((a) => ({

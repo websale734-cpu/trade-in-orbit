@@ -219,7 +219,7 @@ async function createStripeCheckout(
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "usd",
     "line_items[0][price_data][unit_amount]": amount.mul(100).toFixed(0),
-    "line_items[0][price_data][product_data][name]": `Orbtrade deposit ${reference}`,
+    "line_items[0][price_data][product_data][name]": `Trade In Orbit deposit ${reference}`,
     customer_email: email,
     client_reference_id: depositId,
     "metadata[depositId]": depositId,

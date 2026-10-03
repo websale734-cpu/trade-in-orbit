@@ -52,7 +52,7 @@ export function SiteHeader() {
         )}
       >
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
-          <Link href="/" aria-label="Orbtrade home" onClick={() => setOpen(false)}>
+          <Link href="/" aria-label="Trade In Orbit home" onClick={() => setOpen(false)}>
             <Logo />
           </Link>
 

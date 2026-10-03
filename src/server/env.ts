@@ -24,7 +24,7 @@ const schema = z
     EMAIL_PROVIDER: z.enum(["resend", "sendgrid", "console"]).default(isProd ? "resend" : "console"),
     RESEND_API_KEY: z.string().optional(),
     SENDGRID_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().default("Orbtrade <no-reply@orbtrade.example>"),
+    EMAIL_FROM: z.string().default("Trade In Orbit <no-reply@orbtrade.example>"),
 
     SMS_PROVIDER: z.enum(["twilio", "console"]).default(isProd ? "twilio" : "console"),
     TWILIO_ACCOUNT_SID: z.string().optional(),

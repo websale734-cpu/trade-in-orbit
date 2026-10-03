@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 
-/** Orbtrade mark: a gradient orb crossed by a tilted orbit ring. */
+/** Trade In Orbit mark: a gradient orb crossed by a tilted orbit ring. */
 export function LogoMark({ className }: { className?: string }) {
   const id = useId();
   return (
@@ -36,7 +36,7 @@ export function Logo({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <LogoMark />
-      <span className="text-lg font-semibold tracking-tight">Orbtrade</span>
+      <span className="text-lg font-semibold tracking-tight">Trade In Orbit</span>
     </span>
   );
 }

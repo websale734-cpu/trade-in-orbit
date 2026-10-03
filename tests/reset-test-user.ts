@@ -10,7 +10,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../src/generated/prisma/client";
 
 config({ path: ".env.local", quiet: true });
-if (process.env.NODE_ENV === "production" || process.env.NEON_BRANCH === "production") {
+if (process.env.NODE_ENV === "production" || process.env.DATABASE_ENV === "production") {
   console.error("Refusing to run against production.");
   process.exit(1);
 }

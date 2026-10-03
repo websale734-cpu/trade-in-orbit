@@ -33,7 +33,7 @@ export async function openAccount(_prev: FormState | undefined, fd: FormData): P
     body: `Your ${parsed.data.name} account is ready.`,
     link: "/accounts",
   }).catch(() => {});
-  revalidatePath("/accounts");
+  revalidatePath("/accounts", "layout");
   return { message: `${parsed.data.name} account opened.` };
 }
 
@@ -62,7 +62,9 @@ export async function transfer(_prev: TransferState | undefined, fd: FormData): 
     await notify(user.id, { type: "TRANSFER", title: "Transfer complete", body: summary, link: "/accounts" }).catch(
       () => {},
     );
-    revalidatePath("/accounts");
+    // "layout" also refreshes each account's and coin's own page.
+    revalidatePath("/accounts", "layout");
+    revalidatePath("/transfer");
     revalidatePath("/dashboard");
     return { message: summary, done: entry?.id };
   } catch (err) {

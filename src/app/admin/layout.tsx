@@ -6,7 +6,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { can, requireStaff, type Permission } from "@/server/admin/rbac";
 
 export const metadata: Metadata = {
-  title: { default: "Admin", template: "%s · Orbtrade Admin" },
+  title: { default: "Admin", template: "%s · Trade In Orbit Admin" },
   robots: { index: false, follow: false },
 };
 
@@ -35,7 +35,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       <aside className="border-b border-line bg-bg-elevated md:w-60 md:shrink-0 md:border-r md:border-b-0">
         <div className="flex h-16 items-center gap-2 px-4">
           <LogoMark />
-          <span className="font-semibold">Orbtrade</span>
+          <span className="font-semibold">Trade In Orbit</span>
           <span className="rounded bg-down/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-down">ADMIN</span>
           <div className="ml-auto md:hidden">
             <ThemeToggle />

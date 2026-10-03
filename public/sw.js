@@ -1,4 +1,4 @@
-/* Orbtrade service worker: displays Web Push notifications.
+/* Trade In Orbit service worker: displays Web Push notifications.
  * Kept deliberately small: no offline caching of pages, because account data
  * must never be served stale from a cache. */
 
@@ -10,9 +10,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Orbtrade", body: event.data ? event.data.text() : "" };
+    data = { title: "Trade In Orbit", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Orbtrade";
+  const title = data.title || "Trade In Orbit";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",

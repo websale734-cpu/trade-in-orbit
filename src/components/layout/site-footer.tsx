@@ -75,7 +75,7 @@ export async function SiteFooter() {
         </p>
 
         <p className="mt-6 text-xs text-subtle">
-          © {new Date().getFullYear()} Orbtrade. {f.rights}
+          © {new Date().getFullYear()} Trade In Orbit. {f.rights}
         </p>
       </Container>
     </footer>

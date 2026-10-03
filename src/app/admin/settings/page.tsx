@@ -1,6 +1,7 @@
 import { requirePermission } from "@/server/admin/rbac";
 import { getSettings } from "@/server/settings";
-import { ActionForm, adminButton } from "@/components/admin/action-form";
+import { ActionForm } from "@/components/admin/action-form";
+import { adminButton } from "@/components/admin/styles";
 import { cn } from "@/lib/utils";
 import { updateSettings } from "../actions";
 

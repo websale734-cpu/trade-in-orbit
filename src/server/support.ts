@@ -146,7 +146,7 @@ export async function staffReply(staff: Pick<User, "id">, ticketId: string, rawB
   // Chats are answered live; email only for tickets. The email never includes the message itself.
   if (ticket.channel === "TICKET")
     await sendEmail(
-      simpleNoticeEmail(ticket.user.email, "You have a reply from Orbtrade support", "Our support team replied to your ticket. Sign in to read it.", link, "Read the reply"),
+      simpleNoticeEmail(ticket.user.email, "You have a reply from Trade In Orbit support", "Our support team replied to your ticket. Sign in to read it.", link, "Read the reply"),
     ).catch(() => {});
 }
 

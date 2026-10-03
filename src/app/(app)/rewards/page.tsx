@@ -52,7 +52,7 @@ export default async function RewardsPage() {
         </div>
         <p className="mt-2 text-xs text-subtle">
           Your code: <span className="font-mono font-semibold text-muted">{stats.code}</span>. Bonus amounts are set by
-          Orbtrade and may change; self-referrals and duplicate accounts don&apos;t qualify.
+          Trade In Orbit and may change; self-referrals and duplicate accounts don&apos;t qualify.
         </p>
 
         <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">

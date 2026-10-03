@@ -3,7 +3,8 @@ import { requirePermission } from "@/server/admin/rbac";
 import { db } from "@/server/db";
 import { LocalTime } from "@/components/ui/local-time";
 import { SandboxBadge } from "@/components/app/kyc-gate";
-import { ActionForm, adminButton, adminInput } from "@/components/admin/action-form";
+import { ActionForm } from "@/components/admin/action-form";
+import { adminButton, adminInput } from "@/components/admin/styles";
 import { cn } from "@/lib/utils";
 import { decideDeposit } from "../actions";
 

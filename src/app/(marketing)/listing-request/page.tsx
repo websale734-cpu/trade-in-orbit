@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Container } from "@/components/ui/section";
 import { ListingForm } from "./listing-form";
 
-export const metadata: Metadata = { title: "Request a listing", description: "Ask Orbtrade to list your project's coin." };
+export const metadata: Metadata = { title: "Request a listing", description: "Ask Trade In Orbit to list your project's coin." };
 
 export default function ListingRequestPage() {
   return (

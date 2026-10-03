@@ -14,10 +14,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDictionary();
   return {
     metadataBase: new URL(siteConfig.url),
-    title: { default: dict.meta.title, template: "%s · Orbtrade" },
+    title: { default: dict.meta.title, template: "%s · Trade In Orbit" },
     description: dict.meta.description,
-    applicationName: "Orbtrade",
-    openGraph: { title: dict.meta.title, description: dict.meta.description, siteName: "Orbtrade", type: "website" },
+    applicationName: "Trade In Orbit",
+    openGraph: { title: dict.meta.title, description: dict.meta.description, siteName: "Trade In Orbit", type: "website" },
   };
 }
 

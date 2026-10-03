@@ -40,7 +40,7 @@ export default async function TicketPage({ params }: PageProps<"/support/[id]">)
           id: m.id,
           body: m.body,
           mine: !m.fromStaff,
-          author: m.fromStaff ? `${m.author.name.split(/\s+/)[0]} · Orbtrade support` : "You",
+          author: m.fromStaff ? `${m.author.name.split(/\s+/)[0]} · Trade In Orbit support` : "You",
           at: m.createdAt.toISOString(),
         }))}
       />

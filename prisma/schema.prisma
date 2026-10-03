@@ -1,4 +1,4 @@
-// Orbtrade database schema (PostgreSQL on Neon).
+// Orbtrade database schema (PostgreSQL on Supabase).
 //
 // Conventions:
 // - Secrets (session tokens, verification codes, recovery codes) are stored only

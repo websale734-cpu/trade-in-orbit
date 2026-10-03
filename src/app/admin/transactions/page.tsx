@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requirePermission } from "@/server/admin/rbac";
 import { db } from "@/server/db";
 import { LocalTime } from "@/components/ui/local-time";
-import { adminInput } from "@/components/admin/action-form";
+import { adminInput } from "@/components/admin/styles";
 import type { EntryType, Prisma } from "@/generated/prisma/client";
 
 export const metadata = { title: "Transactions" };

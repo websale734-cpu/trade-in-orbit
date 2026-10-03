@@ -6,7 +6,7 @@ import { Faq } from "@/components/landing/faq";
 import { helpTopics } from "@/config/help";
 import { siteConfig } from "@/config/site";
 
-export const metadata: Metadata = { title: "Help centre", description: "Answers to common questions and ways to contact Orbtrade support." };
+export const metadata: Metadata = { title: "Help centre", description: "Answers to common questions and ways to contact Trade In Orbit support." };
 
 export default function HelpPage() {
   const contacts = [
