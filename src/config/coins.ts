@@ -13,13 +13,18 @@ export type TrackedCoin = {
   name: string;
   coingeckoId: string;
   binanceSymbol?: string;
+  /**
+   * Binance pair used for the coin page's candlestick chart when the coin has no
+   * USDT pair of its own. `invert` charts 1 / price (USDT from USDC/USDT).
+   */
+  chartPair?: { symbol: string; invert: boolean };
 };
 
 export const trackedCoins: TrackedCoin[] = [
   { symbol: "BTC", name: "Bitcoin", coingeckoId: "bitcoin", binanceSymbol: "BTCUSDT" },
   { symbol: "ETH", name: "Ethereum", coingeckoId: "ethereum", binanceSymbol: "ETHUSDT" },
   { symbol: "SOL", name: "Solana", coingeckoId: "solana", binanceSymbol: "SOLUSDT" },
-  { symbol: "USDT", name: "Tether", coingeckoId: "tether" },
+  { symbol: "USDT", name: "Tether", coingeckoId: "tether", chartPair: { symbol: "USDCUSDT", invert: true } },
   { symbol: "BNB", name: "BNB", coingeckoId: "binancecoin", binanceSymbol: "BNBUSDT" },
   { symbol: "XRP", name: "XRP", coingeckoId: "ripple", binanceSymbol: "XRPUSDT" },
   { symbol: "ADA", name: "Cardano", coingeckoId: "cardano", binanceSymbol: "ADAUSDT" },
@@ -29,3 +34,11 @@ export const trackedCoins: TrackedCoin[] = [
   { symbol: "LINK", name: "Chainlink", coingeckoId: "chainlink", binanceSymbol: "LINKUSDT" },
   { symbol: "DOT", name: "Polkadot", coingeckoId: "polkadot", binanceSymbol: "DOTUSDT" },
 ];
+
+/** The Binance pair behind a coin's candlestick chart, or null if it can't be charted. */
+export function chartPairOf(code: string): { symbol: string; invert: boolean } | null {
+  const coin = trackedCoins.find((c) => c.symbol === code);
+  if (!coin) return null;
+  if (coin.binanceSymbol) return { symbol: coin.binanceSymbol, invert: false };
+  return coin.chartPair ?? null;
+}

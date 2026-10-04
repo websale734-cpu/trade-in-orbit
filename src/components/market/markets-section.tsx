@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMarket, type LiveTicker } from "./market-provider";
 import { CoinIcon } from "./coin-icon";
 import { Sparkline } from "./sparkline";
@@ -45,38 +46,50 @@ export function MarketsSection() {
             </tr>
           </thead>
           <tbody>
-            {tickers.map((c) => (
-              <tr key={c.symbol} className="border-b border-line transition-colors last:border-0 hover:bg-surface">
-                <td className="px-4 py-3 sm:px-6">
-                  <div className="flex items-center gap-3">
-                    <CoinIcon src={c.image} symbol={c.symbol} />
-                    <div className="min-w-0">
-                      <div className="font-semibold">{c.symbol}</div>
-                      <div className="truncate text-xs text-muted">{c.name}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <span
-                    key={c.priceUsd}
-                    className={cn("tabular rounded px-1 font-medium", c.direction && `flash-${c.direction}`)}
-                  >
-                    {formatUsd(c.priceUsd)}
-                  </span>
-                </td>
-                <td
-                  className={cn(
-                    "tabular px-4 py-3 text-right font-medium",
-                    c.change24hPct >= 0 ? "text-up" : "text-down",
-                  )}
+            {tickers.map((c) => {
+              // Every cell links to the coin page so the whole row is tappable; only the first is a tab stop.
+              const href = `/coins/${c.symbol}`;
+              return (
+                <tr
+                  key={c.symbol}
+                  className="border-b border-line transition-colors last:border-0 focus-within:bg-surface hover:bg-surface"
                 >
-                  {formatPct(c.change24hPct)}
-                </td>
-                <td className="hidden px-6 py-3 md:table-cell">
-                  <Sparkline data={c.sparkline} className="ml-auto h-8 w-28" fill={false} animate={false} />
-                </td>
-              </tr>
-            ))}
+                  <td className="p-0">
+                    <Link href={href} className="block px-4 py-3 outline-none sm:px-6">
+                      <div className="flex items-center gap-3">
+                        <CoinIcon src={c.image} symbol={c.symbol} />
+                        <div className="min-w-0">
+                          <div className="font-semibold">{c.symbol}</div>
+                          <div className="truncate text-xs text-muted">{c.name}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  </td>
+                  <td className="p-0 text-right">
+                    <Link href={href} tabIndex={-1} aria-hidden className="block px-4 py-3">
+                      <span
+                        key={c.priceUsd}
+                        className={cn("tabular rounded px-1 font-medium", c.direction && `flash-${c.direction}`)}
+                      >
+                        {formatUsd(c.priceUsd)}
+                      </span>
+                    </Link>
+                  </td>
+                  <td
+                    className={cn("tabular p-0 text-right font-medium", c.change24hPct >= 0 ? "text-up" : "text-down")}
+                  >
+                    <Link href={href} tabIndex={-1} aria-hidden className="block px-4 py-3">
+                      {formatPct(c.change24hPct)}
+                    </Link>
+                  </td>
+                  <td className="hidden p-0 md:table-cell">
+                    <Link href={href} tabIndex={-1} aria-hidden className="block px-6 py-3">
+                      <Sparkline data={c.sparkline} className="ml-auto h-8 w-28" fill={false} animate={false} />
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -87,8 +100,9 @@ export function MarketsSection() {
 function ChartCard({ coin, delayMs }: { coin: LiveTicker; delayMs: number }) {
   const up = coin.change24hPct >= 0;
   return (
-    <div
-      className="glass group animate-fade-up rounded-[var(--radius-card)] p-5 transition-transform duration-300 hover:-translate-y-1"
+    <Link
+      href={`/coins/${coin.symbol}`}
+      className="glass group block animate-fade-up rounded-[var(--radius-card)] p-5 transition-transform duration-300 hover:-translate-y-1"
       style={{ animationDelay: `${delayMs}ms` }}
     >
       <div className="flex items-center justify-between gap-3">
@@ -118,7 +132,7 @@ function ChartCard({ coin, delayMs }: { coin: LiveTicker; delayMs: number }) {
         {formatUsd(coin.priceUsd)}
       </div>
       <Sparkline data={coin.sparkline} className="mt-4 h-20 w-full" />
-    </div>
+    </Link>
   );
 }
 

@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { useMarket } from "@/components/market/market-provider";
 import { CoinIcon } from "@/components/market/coin-icon";
+import { useI18n } from "@/i18n/client";
+import { fmt } from "@/i18n/format";
 import { cn, formatPct, formatUsd } from "@/lib/utils";
 
 const TIMEFRAMES = ["1D", "1W", "1M", "1Y"] as const;
@@ -30,6 +34,7 @@ export function PriceChart({
   initialAsset?: string;
 }) {
   const { tickers } = useMarket();
+  const { dict } = useI18n();
   const [asset, setAsset] = useState(initialAsset);
   const [tf, setTf] = useState<Tf>("1D");
   const [data, setData] = useState<{ key: string; candles: Candle[] } | null>(null);
@@ -129,6 +134,13 @@ export function PriceChart({
           </select>
           <span className="pointer-events-none absolute right-0 text-xs text-muted">▾</span>
         </label>
+        <Link
+          href={`/markets/${asset}`}
+          className="inline-flex items-center gap-1 text-sm font-semibold text-accent hover:underline"
+        >
+          {fmt(dict.coin.view, { code: asset })}
+          <ChevronRight className="h-4 w-4" />
+        </Link>
         <div
           className="ml-auto flex rounded-full border border-line bg-surface p-1"
           role="radiogroup"

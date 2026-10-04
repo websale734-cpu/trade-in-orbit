@@ -35,10 +35,18 @@ export function Watchlist({
       ) : (
         <ul className="mt-3 divide-y divide-line">
           {rows.map((t) => (
-            <li key={t.symbol} className="flex items-center gap-3 py-2.5">
+            <li
+              key={t.symbol}
+              className="relative -mx-2 flex items-center gap-3 rounded-xl px-2 py-2.5 transition-colors focus-within:bg-surface hover:bg-surface"
+            >
               <CoinIcon src={t.image} symbol={t.symbol} size={28} />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold">{t.symbol}</div>
+                <Link
+                  href={`/markets/${t.symbol}`}
+                  className="text-sm font-semibold outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-accent"
+                >
+                  {t.symbol}
+                </Link>
                 <div className="truncate text-xs text-muted">{t.name}</div>
               </div>
               <Sparkline data={t.sparkline} className="hidden h-8 w-20 sm:block" fill={false} animate={false} />
@@ -53,7 +61,9 @@ export function Watchlist({
                   {formatPct(t.change24hPct)}
                 </div>
               </div>
-              <StarButton assetCode={t.symbol} watching />
+              <div className="relative z-10">
+                <StarButton assetCode={t.symbol} watching />
+              </div>
             </li>
           ))}
         </ul>

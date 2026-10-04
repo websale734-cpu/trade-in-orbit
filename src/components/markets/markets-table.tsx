@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Star } from "lucide-react";
 import { useMarket } from "@/components/market/market-provider";
 import { CoinIcon } from "@/components/market/coin-icon";
@@ -54,10 +55,10 @@ export function MarketsTable({ watching }: { watching: string[] }) {
             label={a.topGainer}
             icon={<ArrowUpRight className="h-4 w-4" />}
             value={
-              <span className="flex items-center gap-3">
+              <Link href={`/markets/${gainer.symbol}`} className="flex items-center gap-3 hover:text-accent">
                 <CoinIcon src={gainer.image} symbol={gainer.symbol} size={32} />
                 {gainer.symbol}
-              </span>
+              </Link>
             }
             hint={<ChangePill pct={gainer.change24hPct} />}
           />
@@ -65,10 +66,10 @@ export function MarketsTable({ watching }: { watching: string[] }) {
             label={a.topLoser}
             icon={<ArrowDownRight className="h-4 w-4" />}
             value={
-              <span className="flex items-center gap-3">
+              <Link href={`/markets/${loser.symbol}`} className="flex items-center gap-3 hover:text-accent">
                 <CoinIcon src={loser.image} symbol={loser.symbol} size={32} />
                 {loser.symbol}
-              </span>
+              </Link>
             }
             hint={<ChangePill pct={loser.change24hPct} />}
           />
@@ -103,13 +104,24 @@ export function MarketsTable({ watching }: { watching: string[] }) {
           {tickers.map((c) => (
             <li
               key={c.symbol}
-              className={cn(COLS, "rounded-xl px-2 py-3.5 transition-colors hover:bg-surface sm:px-3")}
+              className={cn(
+                COLS,
+                "relative rounded-xl px-2 py-3.5 transition-colors focus-within:bg-surface hover:bg-surface sm:px-3",
+              )}
             >
-              <StarButton assetCode={c.symbol} watching={watching.includes(c.symbol)} />
+              {/* The star sits above the row-wide link so it stays its own button. */}
+              <div className="relative z-10">
+                <StarButton assetCode={c.symbol} watching={watching.includes(c.symbol)} />
+              </div>
               <div className="flex min-w-0 items-center gap-3">
                 <CoinIcon src={c.image} symbol={c.symbol} />
                 <div className="min-w-0">
-                  <div className="font-semibold">{c.symbol}</div>
+                  <Link
+                    href={`/markets/${c.symbol}`}
+                    className="font-semibold outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-accent"
+                  >
+                    {c.symbol}
+                  </Link>
                   <div className="truncate text-xs text-muted sm:text-sm">{c.name}</div>
                 </div>
               </div>

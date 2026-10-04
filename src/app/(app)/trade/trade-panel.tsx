@@ -21,6 +21,7 @@ type Acct = { id: string; name: string; balances: Record<string, string> };
 export function TradePanel({
   demo,
   initialTab,
+  initialAsset,
   accounts,
   coins,
   fees,
@@ -28,6 +29,8 @@ export function TradePanel({
 }: {
   demo: boolean;
   initialTab: Tab;
+  /** Coin to preselect (from a coin page's Buy/Sell link). */
+  initialAsset?: string;
   accounts: Acct[];
   coins: { code: string; name: string }[];
   fees: { instant: number; maker: number; taker: number };
@@ -37,8 +40,11 @@ export function TradePanel({
   const { tickers } = useMarket();
   const [tab, setTab] = useState<Tab>(initialTab);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
-  const [base, setBase] = useState("BTC");
-  const [to, setTo] = useState("ETH");
+  // The quote coin can only be swapped, so it's preselected on the swap tab alone.
+  const [base, setBase] = useState(
+    initialAsset && (initialTab === "swap" || initialAsset !== quote) ? initialAsset : "BTC",
+  );
+  const [to, setTo] = useState(base === "ETH" ? "BTC" : "ETH");
   const [amount, setAmount] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
   const [limitSide, setLimitSide] = useState<"BUY" | "SELL">("BUY");

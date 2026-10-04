@@ -54,6 +54,9 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
   const coins = trackedCoins
     .filter((c) => open.has(c.symbol))
     .map((c) => ({ code: c.symbol, name: c.name, chartable: !!c.binanceSymbol }));
+  // Coin pages link here with ?asset=BTC to preselect that coin.
+  const asset = typeof sp.asset === "string" ? sp.asset.toUpperCase() : undefined;
+  const initialAsset = coins.some((c) => c.code === asset) ? asset : undefined;
 
   const demoTag = demo && <span className="text-xs font-bold tracking-wider text-warn">DEMO</span>;
   const sideBadge = (s: string) => (
@@ -118,6 +121,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
             key={demo ? "demo" : "real"}
             demo={demo}
             initialTab={side as "buy" | "sell" | "swap" | "limit"}
+            initialAsset={initialAsset}
             accounts={accountData}
             coins={coins}
             fees={fees}

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CandlestickChart } from "lucide-react";
+import { chartPairOf } from "@/config/coins";
 import { CoinPriceTile, CoinValue } from "@/components/accounts/live-value";
 import { AssetIcon, MoneyActions, PageIntro } from "@/components/accounts/page-parts";
 import { PageStack, Panel } from "@/components/app/ui";
@@ -70,6 +72,15 @@ export default async function CoinPage({ params }: PageProps<"/accounts/[account
         </section>
         <section className="glass min-w-0 rounded-[var(--radius-card)] p-6">
           <CoinPriceTile code={code} />
+          {chartPairOf(code) && (
+            <Link
+              href={`/markets/${code}`}
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+            >
+              <CandlestickChart className="h-4 w-4" />
+              {fmt(dict.coin.view, { code })}
+            </Link>
+          )}
         </section>
         <div className="min-w-0 sm:col-span-2 xl:col-span-1">
           <MoneyActions labels={t.actions} context={{ account: account.id, asset: code }} compact />
