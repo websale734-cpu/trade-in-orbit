@@ -7,7 +7,6 @@ import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
 import { ensureDefaultAccount, listAccounts } from "@/server/ledger";
-import { limitsFor } from "@/server/funding";
 import { WITHDRAWAL_ARRIVAL } from "@/config/funding";
 import { getSettings } from "@/server/settings";
 import { withdrawalOutcome } from "@/server/withdrawals";
@@ -40,9 +39,8 @@ export default async function WithdrawPage() {
     );
 
   await ensureDefaultAccount(user.id);
-  const [accounts, limits, withdrawals, settings] = await Promise.all([
+  const [accounts, withdrawals, settings] = await Promise.all([
     listAccounts(user.id),
-    limitsFor(user),
     db.withdrawal.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 15 }),
     getSettings(),
   ]);
@@ -52,11 +50,7 @@ export default async function WithdrawPage() {
     <div className="min-w-0 space-y-6 sm:space-y-8">
       <PageIntro {...intro}>
         <p className="text-sm text-muted">
-          24-hour limit remaining:{" "}
-          <strong className="text-fg">
-            ${limits.withdrawRemaining.toLocaleString("en-US", { maximumFractionDigits: 2 })}
-          </strong>{" "}
-          of ${limits.withdrawDaily.toLocaleString("en-US")}. Every withdrawal is confirmed with{" "}
+          Every withdrawal is confirmed with{" "}
           {user.totpEnabledAt ? "an emailed code and your authenticator code" : "an emailed code"}.
         </p>
       </PageIntro>

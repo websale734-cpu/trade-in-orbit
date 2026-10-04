@@ -78,7 +78,11 @@ const base = z.object({
   scheduledFor: z.string().optional(),
 });
 
-/** Validate the form fields. Returns the request, or an error to show. */
+/**
+ * Read the form fields. Destination details are taken exactly as typed, even
+ * blank or invalid: the admin reviews them before approving. Returns the
+ * request, or an error to show.
+ */
 function parseRequest(fd: FormData) {
   const raw = Object.fromEntries(fd);
   // Echo the fields back so a failed attempt (or going back from confirmation) doesn't wipe them.
@@ -90,8 +94,6 @@ function parseRequest(fd: FormData) {
   let destination: Destination;
   const s = (k: string) => values[k];
   if (d.method === "BANK") {
-    if (s("holder").length < 2 || s("bankName").length < 2 || !/^[A-Z0-9 ]{6,34}$/i.test(s("account")))
-      return { error: "Enter the account holder, bank name and a valid account number or IBAN.", values };
     destination = {
       kind: "BANK",
       holder: s("holder"),
@@ -99,21 +101,16 @@ function parseRequest(fd: FormData) {
       account: s("account").replace(/\s/g, ""),
     };
   } else if (d.method === "MOBILE_MONEY") {
-    if (!/^\+[1-9]\d{7,14}$/.test(s("phone").replace(/[\s-]/g, "")) || s("provider").length < 2)
-      return { error: "Enter the provider and a mobile number with country code.", values };
     destination = { kind: "MOBILE_MONEY", provider: s("provider"), phone: s("phone").replace(/[\s-]/g, "") };
   } else if (d.method === "CARD") {
-    if (!/^\d{4}$/.test(s("last4")))
-      return { error: "Enter the last 4 digits of the card you deposited with.", values };
     destination = { kind: "CARD", last4: s("last4") };
   } else {
-    if (!s("address")) return { error: `Enter or paste the ${d.assetCode} address to send to.`, values };
     destination = { kind: "CRYPTO", address: s("address") };
   }
 
-  const scheduledFor = d.scheduledFor ? new Date(`${d.scheduledFor}T09:00:00Z`) : null;
-  if (scheduledFor && (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() > Date.now() + 90 * 86_400_000))
-    return { error: "Choose a date within the next 90 days.", values };
+  // An unreadable date just means "not scheduled".
+  const date = d.scheduledFor ? new Date(`${d.scheduledFor}T09:00:00Z`) : null;
+  const scheduledFor = date && !Number.isNaN(date.getTime()) ? date : null;
 
   return { request: { ...d, destination, scheduledFor }, values };
 }
@@ -132,7 +129,7 @@ function describe(d: Destination): [string, string][] {
         ["Mobile number", d.phone],
       ];
     case "CARD":
-      return [["Card", `Ending in ${d.last4}`]];
+      return [["Card", d.last4 ? `Ending in ${d.last4}` : ""]];
     case "CRYPTO":
       return [["Wallet address", d.address]];
   }

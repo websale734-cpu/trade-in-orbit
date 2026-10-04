@@ -5,8 +5,7 @@ import { Decimal, LedgerError, mapLedgerError, postEntry, systemLedgerAccount } 
 import { checkCode } from "./auth/codes";
 import { totpWouldAccept, verifyAndConsumeTotp } from "./auth/totp";
 import { notify } from "./notify/notifications";
-import { limitsFor, methodMode } from "./funding";
-import { getLivePrice } from "@/lib/market/price";
+import { methodMode } from "./funding";
 import { FIAT_METHODS } from "@/config/funding";
 import { getSettings, type Settings } from "./settings";
 import {
@@ -27,7 +26,8 @@ import {
  *   REQUESTED (scheduled) -> UNDER_REVIEW -> COMPLETED  (approved)
  *                                        \-> REJECTED   (funds returned)
  * Every request needs an emailed code, plus an authenticator code if 2FA is on.
- * Destinations (including crypto addresses) are typed in with each request.
+ * Destinations (including crypto addresses) are typed in with each request and
+ * accepted as typed, even blank or malformed; the admin decides on approval.
  */
 const TX = { timeout: 20_000, maxWait: 10_000 } as const;
 
@@ -51,23 +51,25 @@ export type Destination =
 
 /** Keep a masked copy for display and an encrypted copy of the full details. */
 function storeDestination(d: Destination): Prisma.InputJsonValue {
+  const last4 = (s: string) => (s ? `•••• ${s.slice(-4)}` : "(not provided)");
   switch (d.kind) {
     case "BANK":
       return {
         kind: d.kind,
         holder: d.holder,
         bankName: d.bankName,
-        masked: `•••• ${d.account.slice(-4)}`,
+        masked: last4(d.account),
         enc: encryptString(d.account),
       };
     case "MOBILE_MONEY":
-      return { kind: d.kind, provider: d.provider, masked: `•••• ${d.phone.slice(-4)}`, enc: encryptString(d.phone) };
+      return { kind: d.kind, provider: d.provider, masked: last4(d.phone), enc: encryptString(d.phone) };
     case "CARD":
-      return { kind: d.kind, masked: `Card •••• ${d.last4}` };
+      return { kind: d.kind, masked: d.last4 ? `Card •••• ${d.last4}` : "Card (not provided)" };
     case "CRYPTO":
       return {
         kind: d.kind,
-        masked: `${d.address.slice(0, 8)}…${d.address.slice(-6)}`,
+        masked:
+          d.address.length > 16 ? `${d.address.slice(0, 8)}…${d.address.slice(-6)}` : d.address || "(not provided)",
         address: d.address,
       };
   }
@@ -91,8 +93,8 @@ type WithdrawalInput = {
 export async function prepareWithdrawal(input: WithdrawalInput) {
   const { user, method } = input;
   if (user.kycStatus !== "APPROVED") throw new LedgerError("Verify your identity before withdrawing.", "INVALID");
+  // Every method is always accepted; without a payout provider it's paid out manually after admin approval.
   const mode = methodMode(method === "CARD" ? "BANK" : method); // card payouts use the same rails as bank in sandbox
-  if (mode === "unavailable") throw new LedgerError("This withdrawal method isn't available yet.", "INVALID");
 
   const asset = await db.asset.findFirst({ where: { code: input.assetCode, enabled: true } });
   if (!asset) throw new LedgerError("Unsupported asset.", "NOT_FOUND");
@@ -107,17 +109,7 @@ export async function prepareWithdrawal(input: WithdrawalInput) {
   if (!amount.isFinite() || amount.lte(0) || amount.decimalPlaces() > asset.decimals)
     throw new LedgerError(`Enter a valid amount (up to ${asset.decimals} decimal places).`, "INVALID_AMOUNT");
 
-  if (input.destination.kind === "CRYPTO" && !validAddress(asset.code, input.destination.address))
-    throw new LedgerError(`That doesn't look like a valid ${asset.code} address.`, "INVALID");
-
-  const limits = await limitsFor(user);
-  const usdValue = amount.mul(await getLivePrice(asset.code)).toNumber();
-  if (usdValue > limits.withdrawRemaining)
-    throw new LedgerError(
-      `This exceeds your 24-hour withdrawal limit ($${limits.withdrawRemaining.toFixed(2)} remaining).`,
-      "INVALID_AMOUNT",
-    );
-
+  // Destination details aren't checked here; the admin reviews them before approving.
   const fee = withdrawalFee((await getSettings()).fees, method, asset.code, amount, asset.decimals);
   const total = amount.plus(fee);
   // Early, friendly check; the ledger's non-negative constraint is what actually enforces it.
@@ -306,29 +298,4 @@ export async function processScheduledWithdrawals(): Promise<number> {
     data: { status: "UNDER_REVIEW", reviewAt: new Date() },
   });
   return count;
-}
-
-// ---------------------------------------------------------------------------
-// Crypto address format
-// ---------------------------------------------------------------------------
-
-/** Basic per-network format checks; the custody provider validates definitively. */
-const ADDRESS_FORMATS: Record<string, RegExp> = {
-  BTC: /^(bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/,
-  ETH: /^0x[a-fA-F0-9]{40}$/,
-  USDT: /^0x[a-fA-F0-9]{40}$/,
-  LINK: /^0x[a-fA-F0-9]{40}$/,
-  BNB: /^0x[a-fA-F0-9]{40}$/,
-  AVAX: /^0x[a-fA-F0-9]{40}$/,
-  SOL: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
-  XRP: /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/,
-  TRX: /^T[1-9A-HJ-NP-Za-km-z]{33}$/,
-  DOGE: /^D[5-9A-HJ-NP-U][1-9A-HJ-NP-Za-km-z]{32}$/,
-  ADA: /^addr1[a-z0-9]{50,120}$/,
-  DOT: /^1[1-9A-HJ-NP-Za-km-z]{45,47}$/,
-};
-
-export function validAddress(assetCode: string, address: string): boolean {
-  const re = ADDRESS_FORMATS[assetCode];
-  return !!re && re.test(address);
 }
