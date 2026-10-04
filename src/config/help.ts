@@ -29,7 +29,7 @@ export const helpTopics: { id: string; title: string; items: { q: string; a: str
     items: [
       { q: "How can I deposit?", a: "By card, bank transfer or crypto, from the Deposit page. Fees and limits are shown before you confirm." },
       { q: "How long do withdrawals take?", a: "Withdrawals are reviewed for security, then sent. Crypto usually arrives within an hour of approval; bank transfers can take 1-3 business days." },
-      { q: "Why is my withdrawal on hold?", a: "New withdrawal addresses have a security waiting period, and larger amounts may need a manual review. The withdrawal page shows the current status." },
+      { q: "Why is my withdrawal on hold?", a: "Every withdrawal is reviewed by our team before it's sent. While it shows as Pending, the amount is held from your balance; if it's rejected, the funds go back to your account. The withdrawal page shows the current status." },
     ],
   },
   {

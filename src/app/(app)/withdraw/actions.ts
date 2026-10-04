@@ -1,21 +1,32 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/server/auth/dal";
-import { sendCode } from "@/server/auth/codes";
+import { RESEND_COOLDOWN_SECONDS, sendCode, usableCode } from "@/server/auth/codes";
 import { logSecurityEvent } from "@/server/auth/security-log";
 import { LedgerError } from "@/server/ledger";
-import {
-  addWithdrawalAddress,
-  confirmWithdrawalAddress,
-  requestWithdrawal,
-  type Destination,
-} from "@/server/withdrawals";
+import { prepareWithdrawal, requestWithdrawal, type Destination } from "@/server/withdrawals";
 import { PriceUnavailableError } from "@/lib/market/price";
 import type { FormState } from "@/components/ui/form";
 
 export type WithdrawState = FormState & { done?: string };
+
+/** What the confirmation screen shows, plus every field to send again with the codes. */
+export type WithdrawReview = {
+  /** Unique per review, so each confirmation screen starts fresh. */
+  id: string;
+  values: Record<string, string>;
+  accountName: string;
+  assetCode: string;
+  amount: string;
+  fee: string;
+  total: string;
+  destination: [string, string][];
+  scheduledFor: string | null;
+};
+export type ReviewState = FormState & { review?: WithdrawReview };
 
 function fail(err: unknown): FormState {
   if (err instanceof LedgerError || err instanceof PriceUnavailableError) return { error: err.message };
@@ -23,41 +34,61 @@ function fail(err: unknown): FormState {
   return { error: "The withdrawal couldn't be requested. No funds were moved." };
 }
 
-/** Email a one-time code (used when the user hasn't enabled an authenticator app). */
+/** Email a one-time code. The confirmation screen calls this as soon as it opens. */
 export async function sendWithdrawalCode(): Promise<FormState> {
   const { user } = await requireUser();
   const r = await sendCode(user.id, "WITHDRAWAL_CONFIRM", user.email).catch(() => ({
     ok: false as const,
     error: "Couldn't send the email.",
+    retryAfterSeconds: undefined,
   }));
-  return r.ok ? { message: "We emailed you a 6-digit code." } : { error: r.error };
+  if (r.ok) return { message: `We emailed a 6-digit code to ${user.email}.` };
+  // Still in the resend cooldown: the code sent moments ago still works.
+  if (
+    r.retryAfterSeconds &&
+    r.retryAfterSeconds <= RESEND_COOLDOWN_SECONDS &&
+    (await usableCode(user.id, "WITHDRAWAL_CONFIRM"))
+  )
+    return {
+      message: `We emailed a 6-digit code to ${user.email}. Didn't get it? You can resend in ${r.retryAfterSeconds}s.`,
+    };
+  return { error: r.error };
 }
+
+const FIELDS = [
+  "method",
+  "accountId",
+  "assetCode",
+  "amount",
+  "holder",
+  "bankName",
+  "account",
+  "provider",
+  "phone",
+  "last4",
+  "address",
+  "scheduledFor",
+];
 
 const base = z.object({
   method: z.enum(["BANK", "CARD", "MOBILE_MONEY", "CRYPTO"]),
   accountId: z.string().min(1),
   assetCode: z.string().regex(/^[A-Z]{2,6}$/),
   amount: z.string().regex(/^\d+(\.\d+)?$/, "Enter a valid amount."),
-  code: z.string().regex(/^\d{6}$/, "Enter the 6-digit confirmation code."),
   scheduledFor: z.string().optional(),
 });
 
-export async function submitWithdrawal(_prev: WithdrawState | undefined, fd: FormData): Promise<WithdrawState> {
-  const { user } = await requireUser();
+/** Validate the form fields. Returns the request, or an error to show. */
+function parseRequest(fd: FormData) {
   const raw = Object.fromEntries(fd);
-  // Echo destination fields back so a failed attempt (e.g. a wrong code) doesn't wipe them.
-  const values = Object.fromEntries(
-    ["holder", "bankName", "account", "provider", "phone", "last4", "scheduledFor"].map((k) => [
-      k,
-      String(raw[k] ?? ""),
-    ]),
-  );
+  // Echo the fields back so a failed attempt (or going back from confirmation) doesn't wipe them.
+  const values = Object.fromEntries(FIELDS.map((k) => [k, String(raw[k] ?? "").trim()]));
   const parsed = base.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const d = parsed.data;
 
   let destination: Destination;
-  const s = (k: string) => String(raw[k] ?? "").trim();
+  const s = (k: string) => values[k];
   if (d.method === "BANK") {
     if (s("holder").length < 2 || s("bankName").length < 2 || !/^[A-Z0-9 ]{6,34}$/i.test(s("account")))
       return { error: "Enter the account holder, bank name and a valid account number or IBAN.", values };
@@ -76,61 +107,86 @@ export async function submitWithdrawal(_prev: WithdrawState | undefined, fd: For
       return { error: "Enter the last 4 digits of the card you deposited with.", values };
     destination = { kind: "CARD", last4: s("last4") };
   } else {
-    if (!s("addressId")) return { error: "Choose a confirmed address from your address book.", values };
-    destination = { kind: "CRYPTO", addressId: s("addressId") };
+    if (!s("address")) return { error: `Enter or paste the ${d.assetCode} address to send to.`, values };
+    destination = { kind: "CRYPTO", address: s("address") };
   }
 
   const scheduledFor = d.scheduledFor ? new Date(`${d.scheduledFor}T09:00:00Z`) : null;
   if (scheduledFor && (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() > Date.now() + 90 * 86_400_000))
     return { error: "Choose a date within the next 90 days.", values };
 
+  return { request: { ...d, destination, scheduledFor }, values };
+}
+
+function describe(d: Destination): [string, string][] {
+  switch (d.kind) {
+    case "BANK":
+      return [
+        ["Account holder", d.holder],
+        ["Bank", d.bankName],
+        ["Account number / IBAN", d.account],
+      ];
+    case "MOBILE_MONEY":
+      return [
+        ["Provider", d.provider],
+        ["Mobile number", d.phone],
+      ];
+    case "CARD":
+      return [["Card", `Ending in ${d.last4}`]];
+    case "CRYPTO":
+      return [["Wallet address", d.address]];
+  }
+}
+
+/** Step 1: check the details and show the confirmation screen. Nothing is held yet. */
+export async function reviewWithdrawal(_prev: ReviewState | undefined, fd: FormData): Promise<ReviewState> {
+  const { user } = await requireUser();
+  const p = parseRequest(fd);
+  if (!p.request) return { error: p.error, values: p.values };
   try {
-    const w = await requestWithdrawal({ user, ...d, destination, confirmationCode: d.code, scheduledFor });
+    const r = await prepareWithdrawal({ user, ...p.request });
+    return {
+      values: p.values,
+      review: {
+        id: randomUUID(),
+        values: p.values,
+        accountName: r.account.name,
+        assetCode: r.asset.code,
+        amount: r.amount.toString(),
+        fee: r.fee.toString(),
+        total: r.total.toString(),
+        destination: describe(p.request.destination),
+        scheduledFor: r.scheduled?.toISOString() ?? null,
+      },
+    };
+  } catch (err) {
+    return { ...fail(err), values: p.values };
+  }
+}
+
+/** Step 2: check the codes, hold the funds and queue the withdrawal for approval. */
+export async function submitWithdrawal(_prev: WithdrawState | undefined, fd: FormData): Promise<WithdrawState> {
+  const { user } = await requireUser();
+  const p = parseRequest(fd);
+  if (!p.request) return { error: p.error };
+  const emailCode = String(fd.get("emailCode") ?? "").replace(/\s/g, "");
+  const totpCode = String(fd.get("totpCode") ?? "").replace(/\s/g, "");
+  if (user.totpSecretEnc && !/^\d{6}$/.test(totpCode))
+    return { error: "Enter the 6-digit code from your authenticator app." };
+  if (!/^\d{6}$/.test(emailCode)) return { error: "Enter the 6-digit code we emailed you." };
+
+  try {
+    const w = await requestWithdrawal({ user, ...p.request, emailCode, totpCode });
     await logSecurityEvent("WITHDRAWAL_REQUESTED", user.id, { withdrawalId: w!.id });
     revalidatePath("/withdraw");
     revalidatePath("/dashboard");
     return {
-      message: scheduledFor
-        ? "Withdrawal scheduled. Funds are reserved until then."
-        : "Withdrawal requested. We'll notify you as it progresses.",
+      message: p.request.scheduledFor
+        ? "Withdrawal scheduled. Funds are reserved until then, and it will then wait for approval."
+        : "Withdrawal requested. It's pending approval, and the amount is held from your balance.",
       done: w!.id,
     };
   } catch (err) {
-    return { ...fail(err), values };
-  }
-}
-
-export type AddressState = FormState & { pendingId?: string };
-
-export async function addAddress(_prev: AddressState | undefined, fd: FormData): Promise<AddressState> {
-  const { user } = await requireUser();
-  const parsed = z
-    .object({
-      assetCode: z.string().regex(/^[A-Z]{2,6}$/),
-      label: z.string().trim().min(1).max(40),
-      address: z.string().trim().min(10).max(128),
-    })
-    .safeParse(Object.fromEntries(fd));
-  if (!parsed.success) return { error: "Enter a label and the full address." };
-  try {
-    const saved = await addWithdrawalAddress(user, parsed.data.assetCode, parsed.data.label, parsed.data.address);
-    if (saved.confirmedAt) return { message: "This address is already in your address book." };
-    const sent = await sendCode(user.id, "ADDRESS_CONFIRM", user.email);
-    if (!sent.ok) return { error: sent.error, pendingId: saved.id };
-    return { message: "We emailed you a code to confirm this address.", pendingId: saved.id };
-  } catch (err) {
     return fail(err);
-  }
-}
-
-export async function confirmAddress(_prev: AddressState | undefined, fd: FormData): Promise<AddressState> {
-  const { user } = await requireUser();
-  const id = String(fd.get("addressId") ?? "");
-  try {
-    await confirmWithdrawalAddress(user, id, String(fd.get("code") ?? ""));
-    revalidatePath("/withdraw");
-    return { message: "Address confirmed and added to your address book." };
-  } catch (err) {
-    return { ...fail(err), pendingId: id };
   }
 }

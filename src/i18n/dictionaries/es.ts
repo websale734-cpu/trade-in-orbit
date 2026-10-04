@@ -112,7 +112,7 @@ const es = {
       },
       {
         title: "Protecciones de retiro",
-        body: "Los retiros requieren 2FA o confirmación por correo, y las nuevas direcciones deben aprobarse.",
+        body: "Cada retiro se confirma con un código enviado por correo (y tu código de autenticador si tienes 2FA activada) y nuestro equipo lo revisa antes de enviarlo.",
       },
       {
         title: "Datos cifrados",

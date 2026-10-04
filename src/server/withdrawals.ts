@@ -3,8 +3,7 @@ import { db } from "./db";
 import { encryptString } from "./crypto";
 import { Decimal, LedgerError, mapLedgerError, postEntry, systemLedgerAccount } from "./ledger";
 import { checkCode } from "./auth/codes";
-import { verifyAndConsumeTotp } from "./auth/totp";
-import { logSecurityEvent } from "./auth/security-log";
+import { totpWouldAccept, verifyAndConsumeTotp } from "./auth/totp";
 import { notify } from "./notify/notifications";
 import { limitsFor, methodMode } from "./funding";
 import { getLivePrice } from "@/lib/market/price";
@@ -27,8 +26,8 @@ import {
  * rejects it (hold -> back to the user, REJECTED). Status:
  *   REQUESTED (scheduled) -> UNDER_REVIEW -> COMPLETED  (approved)
  *                                        \-> REJECTED   (funds returned)
- * A second factor is required: an authenticator code if 2FA is on, otherwise an
- * emailed code. Crypto withdrawals must go to a saved, email-confirmed address.
+ * Every request needs an emailed code, plus an authenticator code if 2FA is on.
+ * Destinations (including crypto addresses) are typed in with each request.
  */
 const TX = { timeout: 20_000, maxWait: 10_000 } as const;
 
@@ -48,10 +47,10 @@ export type Destination =
   | { kind: "BANK"; holder: string; bankName: string; account: string }
   | { kind: "MOBILE_MONEY"; provider: string; phone: string }
   | { kind: "CARD"; last4: string }
-  | { kind: "CRYPTO"; addressId: string };
+  | { kind: "CRYPTO"; address: string };
 
 /** Keep a masked copy for display and an encrypted copy of the full details. */
-function storeDestination(d: Destination, cryptoAddress?: string): Prisma.InputJsonValue {
+function storeDestination(d: Destination): Prisma.InputJsonValue {
   switch (d.kind) {
     case "BANK":
       return {
@@ -68,22 +67,28 @@ function storeDestination(d: Destination, cryptoAddress?: string): Prisma.InputJ
     case "CRYPTO":
       return {
         kind: d.kind,
-        masked: `${cryptoAddress!.slice(0, 8)}…${cryptoAddress!.slice(-6)}`,
-        address: cryptoAddress!,
+        masked: `${d.address.slice(0, 8)}…${d.address.slice(-6)}`,
+        address: d.address,
       };
   }
 }
 
-export async function requestWithdrawal(input: {
+type WithdrawalInput = {
   user: User;
   accountId: string;
   method: PaymentMethod;
   assetCode: string;
   amount: string;
   destination: Destination;
-  confirmationCode: string;
   scheduledFor?: Date | null;
-}) {
+};
+
+/**
+ * Every check that doesn't need the confirmation codes. Read-only: nothing is
+ * held. The confirmation screen is shown once this passes, and
+ * requestWithdrawal runs it again before holding the funds.
+ */
+export async function prepareWithdrawal(input: WithdrawalInput) {
   const { user, method } = input;
   if (user.kycStatus !== "APPROVED") throw new LedgerError("Verify your identity before withdrawing.", "INVALID");
   const mode = methodMode(method === "CARD" ? "BANK" : method); // card payouts use the same rails as bank in sandbox
@@ -102,14 +107,8 @@ export async function requestWithdrawal(input: {
   if (!amount.isFinite() || amount.lte(0) || amount.decimalPlaces() > asset.decimals)
     throw new LedgerError(`Enter a valid amount (up to ${asset.decimals} decimal places).`, "INVALID_AMOUNT");
 
-  let cryptoAddress: string | undefined;
-  if (input.destination.kind === "CRYPTO") {
-    const addr = await db.withdrawalAddress.findFirst({
-      where: { id: input.destination.addressId, userId: user.id, assetCode: asset.code, confirmedAt: { not: null } },
-    });
-    if (!addr) throw new LedgerError("Choose a confirmed address from your address book.", "INVALID");
-    cryptoAddress = addr.address;
-  }
+  if (input.destination.kind === "CRYPTO" && !validAddress(asset.code, input.destination.address))
+    throw new LedgerError(`That doesn't look like a valid ${asset.code} address.`, "INVALID");
 
   const limits = await limitsFor(user);
   const usdValue = amount.mul(await getLivePrice(asset.code)).toNumber();
@@ -119,19 +118,39 @@ export async function requestWithdrawal(input: {
       "INVALID_AMOUNT",
     );
 
-  // Second factor, checked last so a typo elsewhere doesn't burn a code.
-  const ok = user.totpSecretEnc
-    ? await verifyAndConsumeTotp(user.id, user.totpSecretEnc, input.confirmationCode)
-    : (await checkCode(user.id, "WITHDRAWAL_CONFIRM", input.confirmationCode)).ok;
-  if (!ok)
-    throw new LedgerError(
-      user.totpSecretEnc ? "Incorrect authenticator code." : "Incorrect or expired email code.",
-      "INVALID",
-    );
-
   const fee = withdrawalFee((await getSettings()).fees, method, asset.code, amount, asset.decimals);
   const total = amount.plus(fee);
+  // Early, friendly check; the ledger's non-negative constraint is what actually enforces it.
+  const from = await db.ledgerAccount.findUnique({
+    where: { accountId_assetCode: { accountId: account.id, assetCode: asset.code } },
+  });
+  if (!from || from.balance.lt(total)) throw new LedgerError("Insufficient balance.", "INSUFFICIENT_FUNDS");
+
   const scheduled = input.scheduledFor && input.scheduledFor.getTime() > Date.now() ? input.scheduledFor : null;
+  return { asset, account, amount, fee, total, mode, scheduled };
+}
+
+/**
+ * Hold the funds and queue the withdrawal for admin review. Needs the emailed
+ * code, plus an authenticator code when 2FA is on.
+ */
+export async function requestWithdrawal(input: WithdrawalInput & { emailCode: string; totpCode?: string }) {
+  const { user, method } = input;
+  const { asset, account, amount, fee, total, mode, scheduled } = await prepareWithdrawal(input);
+
+  // Codes are checked last so a typo elsewhere doesn't burn one. The authenticator code
+  // is checked first without using it up, so a wrong one doesn't cost an email-code attempt.
+  const totpCode = input.totpCode ?? "";
+  if (user.totpSecretEnc && !totpWouldAccept(user.totpSecretEnc, user.totpLastStep, totpCode))
+    throw new LedgerError("Incorrect authenticator code.", "INVALID");
+  const emailed = await checkCode(user.id, "WITHDRAWAL_CONFIRM", input.emailCode);
+  if (!emailed.ok)
+    throw new LedgerError(
+      emailed.reason === "invalid" ? `Incorrect email code. ${emailed.attemptsLeft} attempt(s) left.` : emailed.error,
+      "INVALID",
+    );
+  if (user.totpSecretEnc && !(await verifyAndConsumeTotp(user.id, user.totpSecretEnc, totpCode)))
+    throw new LedgerError("That authenticator code was already used. Wait for the next one and try again.", "INVALID");
 
   try {
     const w = await db.$transaction(async (tx) => {
@@ -159,8 +178,7 @@ export async function requestWithdrawal(input: {
           assetCode: asset.code,
           amount,
           fee,
-          destination: storeDestination(input.destination, cryptoAddress),
-          addressId: input.destination.kind === "CRYPTO" ? input.destination.addressId : null,
+          destination: storeDestination(input.destination),
           scheduledFor: scheduled,
           sandbox: mode === "sandbox",
           holdEntryId: entry.id,
@@ -291,7 +309,7 @@ export async function processScheduledWithdrawals(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// Address book
+// Crypto address format
 // ---------------------------------------------------------------------------
 
 /** Basic per-network format checks; the custody provider validates definitively. */
@@ -313,28 +331,4 @@ const ADDRESS_FORMATS: Record<string, RegExp> = {
 export function validAddress(assetCode: string, address: string): boolean {
   const re = ADDRESS_FORMATS[assetCode];
   return !!re && re.test(address);
-}
-
-/** Save a new address (unconfirmed). The user confirms it with an emailed code. */
-export async function addWithdrawalAddress(user: User, assetCode: string, label: string, address: string) {
-  const clean = address.trim();
-  if (!validAddress(assetCode, clean))
-    throw new LedgerError(`That doesn't look like a valid ${assetCode} address.`, "INVALID");
-  const saved = await db.withdrawalAddress.upsert({
-    where: { userId_assetCode_address: { userId: user.id, assetCode, address: clean } },
-    update: { label },
-    create: { userId: user.id, assetCode, label, address: clean },
-  });
-  return saved;
-}
-
-export async function confirmWithdrawalAddress(user: User, addressId: string, code: string) {
-  const result = await checkCode(user.id, "ADDRESS_CONFIRM", code);
-  if (!result.ok) throw new LedgerError(result.error, "INVALID");
-  const { count } = await db.withdrawalAddress.updateMany({
-    where: { id: addressId, userId: user.id, confirmedAt: null },
-    data: { confirmedAt: new Date() },
-  });
-  if (count !== 1) throw new LedgerError("Address not found.", "NOT_FOUND");
-  await logSecurityEvent("WITHDRAWAL_ADDRESS_ADDED", user.id, { addressId });
 }

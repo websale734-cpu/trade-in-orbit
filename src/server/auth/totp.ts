@@ -54,6 +54,12 @@ function matchStep(secretEnc: string, code: string): number | null {
   return Math.floor(Date.now() / 1000 / PERIOD_SECONDS) + delta;
 }
 
+/** Whether a code would be accepted right now, without marking it as used. */
+export function totpWouldAccept(secretEnc: string, lastStep: number | null, code: string): boolean {
+  const step = matchStep(secretEnc, code);
+  return step !== null && (lastStep === null || step > lastStep);
+}
+
 /**
  * Verify a code for an account with 2FA enabled and mark its time step as used.
  * Each code works once: a code at or before the last accepted step is rejected,

@@ -114,7 +114,7 @@ const fr = {
       },
       {
         title: "Protections de retrait",
-        body: "Les retraits exigent la 2FA ou une confirmation par e-mail, et les nouvelles adresses doivent être approuvées.",
+        body: "Chaque retrait est confirmé par un code envoyé par e-mail (et votre code d'authentification si la 2FA est activée), puis vérifié par notre équipe avant son envoi.",
       },
       {
         title: "Données chiffrées",

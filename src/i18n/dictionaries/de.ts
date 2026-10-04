@@ -112,7 +112,7 @@ const de = {
       },
       {
         title: "Auszahlungs-Schutzvorkehrungen",
-        body: "Auszahlungen erfordern 2FA oder eine E-Mail-Bestätigung, und neue Adressen müssen freigegeben werden.",
+        body: "Jede Auszahlung wird mit einem per E-Mail gesendeten Code bestätigt (bei aktivierter 2FA zusätzlich mit deinem Authenticator-Code) und vor dem Versand von unserem Team geprüft.",
       },
       {
         title: "Verschlüsselte Daten",

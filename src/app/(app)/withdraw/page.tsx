@@ -40,11 +40,10 @@ export default async function WithdrawPage() {
     );
 
   await ensureDefaultAccount(user.id);
-  const [accounts, limits, withdrawals, addresses, settings] = await Promise.all([
+  const [accounts, limits, withdrawals, settings] = await Promise.all([
     listAccounts(user.id),
     limitsFor(user),
     db.withdrawal.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 15 }),
-    db.withdrawalAddress.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
     getSettings(),
   ]);
   const devTools = process.env.NODE_ENV !== "production";
@@ -57,8 +56,8 @@ export default async function WithdrawPage() {
           <strong className="text-fg">
             ${limits.withdrawRemaining.toLocaleString("en-US", { maximumFractionDigits: 2 })}
           </strong>{" "}
-          of ${limits.withdrawDaily.toLocaleString("en-US")}. Every withdrawal needs{" "}
-          {user.totpEnabledAt ? "an authenticator code" : "an emailed code"}.
+          of ${limits.withdrawDaily.toLocaleString("en-US")}. Every withdrawal is confirmed with{" "}
+          {user.totpEnabledAt ? "an emailed code and your authenticator code" : "an emailed code"}.
         </p>
       </PageIntro>
 
@@ -67,13 +66,6 @@ export default async function WithdrawPage() {
           id: a.id,
           name: a.name,
           balances: Object.fromEntries(a.ledgerAccounts.map((l) => [l.assetCode, l.balance.toString()])),
-        }))}
-        addresses={addresses.map((a) => ({
-          id: a.id,
-          assetCode: a.assetCode,
-          label: a.label,
-          address: a.address,
-          confirmed: !!a.confirmedAt,
         }))}
         fees={{ fiat: settings.fees.withdrawal, network: settings.fees.network }}
         arrival={WITHDRAWAL_ARRIVAL}
@@ -123,8 +115,8 @@ export default async function WithdrawPage() {
                   )}
                   {outcome === "FAILED" && (
                     <p className="mt-3 flex items-center gap-2 text-down">
-                      <X className="h-4 w-4 shrink-0" /> Rejected{w.rejectionReason ? `: ${w.rejectionReason}` : ""}. The
-                      funds were returned to your balance.
+                      <X className="h-4 w-4 shrink-0" /> Rejected{w.rejectionReason ? `: ${w.rejectionReason}` : ""}.
+                      The funds were returned to your balance.
                     </p>
                   )}
                   {w.txRef && <p className="mt-3 font-mono text-xs text-muted">Reference: {w.txRef}</p>}

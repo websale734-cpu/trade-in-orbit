@@ -92,7 +92,7 @@ const en = {
       { title: "Two-factor & passkeys", body: "Protect sign-in with an authenticator app or device biometrics." },
       {
         title: "Withdrawal safeguards",
-        body: "Withdrawals require 2FA or email confirmation, and new addresses must be approved.",
+        body: "Every withdrawal is confirmed with an emailed code (plus your authenticator code if 2FA is on) and reviewed by our team before it's sent.",
       },
       { title: "Encrypted data", body: "Sensitive data is encrypted at rest and all traffic is served over HTTPS." },
       { title: "Identity verification", body: "KYC checks help keep fraud and money laundering off the platform." },
