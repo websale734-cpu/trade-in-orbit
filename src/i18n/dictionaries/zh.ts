@@ -28,6 +28,7 @@ const zh = {
     fees: "费用",
     faq: "常见问题",
     learn: "学习",
+    contact: "联系我们",
   },
   promo: {
     endsIn: "结束倒计时",

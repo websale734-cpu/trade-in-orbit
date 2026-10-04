@@ -28,6 +28,7 @@ const de = {
     fees: "Gebühren",
     faq: "FAQ",
     learn: "Lernen",
+    contact: "Kontakt",
   },
   promo: {
     endsIn: "Endet in",

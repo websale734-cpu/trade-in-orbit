@@ -28,6 +28,7 @@ const ar = {
     fees: "الرسوم",
     faq: "الأسئلة الشائعة",
     learn: "تعلّم",
+    contact: "اتصل بنا",
   },
   promo: {
     endsIn: "ينتهي خلال",

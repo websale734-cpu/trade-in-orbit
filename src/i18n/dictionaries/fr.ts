@@ -28,6 +28,7 @@ const fr = {
     fees: "Frais",
     faq: "FAQ",
     learn: "Apprendre",
+    contact: "Contact",
   },
   promo: {
     endsIn: "Se termine dans",

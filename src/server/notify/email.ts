@@ -10,13 +10,15 @@ import { siteConfig } from "@/config/site";
  *   - sendgrid : SendGrid v3 HTTP API (SENDGRID_API_KEY)
  *   - console  : development only; prints the email to the server console
  */
-export type EmailMessage = { to: string; subject: string; text: string; html: string };
+export type EmailMessage = { to: string; subject: string; text: string; html: string; replyTo?: string };
 
 export async function sendEmail(msg: EmailMessage): Promise<void> {
   const e = env();
   switch (e.EMAIL_PROVIDER) {
     case "console":
-      console.info(`\n[email:console] To: ${msg.to}\nSubject: ${msg.subject}\n${msg.text}\n`);
+      console.info(
+        `\n[email:console] To: ${msg.to}${msg.replyTo ? `\nReply-To: ${msg.replyTo}` : ""}\nSubject: ${msg.subject}\n${msg.text}\n`,
+      );
       return;
     case "resend": {
       const res = await fetch("https://api.resend.com/emails", {
@@ -28,6 +30,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
           subject: msg.subject,
           text: msg.text,
           html: msg.html,
+          ...(msg.replyTo && { reply_to: msg.replyTo }),
         }),
         signal: AbortSignal.timeout(10_000),
       });
@@ -42,6 +45,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         body: JSON.stringify({
           personalizations: [{ to: [{ email: msg.to }] }],
           from,
+          ...(msg.replyTo && { reply_to: { email: msg.replyTo } }),
           subject: msg.subject,
           content: [
             { type: "text/plain", value: msg.text },
@@ -316,6 +320,29 @@ export function passwordChangedEmail(to: string): EmailMessage {
       "Your password was changed",
       `The password for your account was just changed and all devices were signed out.${callout(`If this wasn't you, ${inlineLink(help, "contact support", "o-warnlink", "#9f1239")} immediately.`)}`,
       { icon: "lock" },
+    ),
+  };
+}
+
+/**
+ * A Contact page message, sent to the support inbox. Reply-To is the customer,
+ * so pressing Reply answers them directly. All customer text is escaped.
+ */
+export function contactFormEmail(to: string, msg: { name: string; email: string; message: string }): EmailMessage {
+  const name = msg.name.replace(/\s+/g, " ");
+  const message = esc(msg.message).replace(/\r?\n/g, "<br>");
+  return {
+    to,
+    replyTo: msg.email,
+    subject: `Contact form: ${name}`,
+    text: `New message from the Contact page.\n\nName: ${name}\nEmail: ${msg.email}\n\n${msg.message}\n\nReply to this email to answer ${name} directly.`,
+    html: layout(
+      "New Contact page message",
+      `${esc(name)} sent a message from the Contact page.${detailsPanel([
+        ["Name", name],
+        ["Email", msg.email],
+      ])}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="o-panel" bgcolor="#fbfaff" style="margin:16px 0 2px;background:#fbfaff;border:1px solid #e9e5f6;border-radius:16px"><tr><td class="o-value" style="padding:18px 22px;font-family:${FONT};font-size:15px;line-height:1.7;color:#13111f;word-break:break-word">${message}</td></tr></table>`,
+      { icon: "mail", footer: `Reply to this email to answer ${esc(name)} directly at ${esc(msg.email)}.` },
     ),
   };
 }

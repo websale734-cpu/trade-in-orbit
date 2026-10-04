@@ -31,6 +31,7 @@ const en = {
     fees: "Fees",
     faq: "FAQ",
     learn: "Learn",
+    contact: "Contact",
   },
   promo: {
     endsIn: "Ends in",

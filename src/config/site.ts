@@ -5,7 +5,9 @@
 export const siteConfig = {
   name: "Trade In Orbit",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@orbtrade.example",
+  supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@tradeinorbit.com",
+  /** Inbox that receives Contact page messages (server-side only). */
+  contactInbox: "support@tradeinorbit.com",
   /** Shown in the help centre (Phase 7). Leave empty to hide. */
   supportPhone: process.env.NEXT_PUBLIC_SUPPORT_PHONE ?? "",
 } as const;

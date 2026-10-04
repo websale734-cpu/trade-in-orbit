@@ -42,6 +42,8 @@ export function SiteHeader() {
     { href: "/#security", label: dict.nav.security },
     { href: "/#fees", label: dict.nav.fees },
     { href: "/#faq", label: dict.nav.faq },
+    // Desktop bar only from lg: at md it would push the header controls off-screen.
+    { href: "/contact", label: dict.nav.contact, className: "max-lg:hidden" },
   ];
 
   return (
@@ -62,7 +64,10 @@ export function SiteHeader() {
               <Link
                 key={l.href}
                 href={l.href}
-                className="rounded-full px-3 py-2 text-sm text-muted transition-colors hover:bg-surface hover:text-fg"
+                className={cn(
+                  "rounded-full px-3 py-2 text-sm text-muted transition-colors hover:bg-surface hover:text-fg",
+                  l.className,
+                )}
               >
                 {l.label}
               </Link>

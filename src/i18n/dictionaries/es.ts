@@ -28,6 +28,7 @@ const es = {
     fees: "Comisiones",
     faq: "Preguntas frecuentes",
     learn: "Aprender",
+    contact: "Contacto",
   },
   promo: {
     endsIn: "Termina en",
