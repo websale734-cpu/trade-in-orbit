@@ -197,8 +197,28 @@ export async function transferBetweenAccounts(input: {
 /** Customer-facing labels an admin can give a credit; the one they pick becomes the user's history heading. */
 export const ADMIN_CREDIT_LABELS = ["Deposit", "Transfer received", "Bonus", "Correction"] as const;
 export type AdminCreditLabel = (typeof ADMIN_CREDIT_LABELS)[number];
-/** Debits (negative amounts) are always shown to the customer as a neutral adjustment. */
+/** Debits (negative amounts) are shown to the customer as a neutral adjustment, or as a correction. */
 export const ADMIN_DEBIT_LABEL = "Adjustment";
+export const ADMIN_CORRECTION_LABEL = "Correction";
+/** Every label the admin form offers. Credits may use any; debits only Adjustment or Correction. */
+export const ADMIN_LABELS = [...ADMIN_CREDIT_LABELS, ADMIN_DEBIT_LABEL] as const;
+
+/** Validates the internal (admin-only) reason recorded on an adjustment. */
+function internalReason(reason: string | undefined, fallback: string): string {
+  if (reason === undefined) return fallback;
+  const r = reason.trim();
+  if (r.length < 5) throw new LedgerError("Give an internal reason (at least 5 characters).", "INVALID");
+  if (r.length > 500) throw new LedgerError("Keep the internal reason under 500 characters.", "INVALID");
+  return r;
+}
+
+function customerDescription(input: string): string {
+  const description = input.trim();
+  if (description.length < 3)
+    throw new LedgerError("Add a short description of the source (at least 3 characters).", "INVALID");
+  if (description.length > 160) throw new LedgerError("Keep the description under 160 characters.", "INVALID");
+  return description;
+}
 
 /**
  * Manual balance adjustment by staff (e.g. correcting a provider error, or
@@ -207,9 +227,9 @@ export const ADMIN_DEBIT_LABEL = "Adjustment";
  * the funds land in that coin's wallet. It can't overdraw the user (the database
  * rejects it), and it's never a silent edit.
  *
- * `description` is the customer-facing note (where the funds came from) and is
- * also kept verbatim as the entry's internal `reason` for the audit trail.
- * `label` is the customer-facing heading for a credit; debits ignore it.
+ * `description` is the customer-facing note (where the funds came from).
+ * `reason` is the internal note kept on the entry for staff only (it falls back
+ * to the description when omitted). `label` is the customer-facing heading.
  */
 export async function adjustBalance(input: {
   actorId: string;
@@ -219,13 +239,13 @@ export async function adjustBalance(input: {
   amount: string;
   /** Customer-facing source note, e.g. "Transfer from external BTC wallet". */
   description: string;
-  /** One of ADMIN_CREDIT_LABELS for a credit; ignored for debits. */
+  /** Customer-facing heading: any of ADMIN_LABELS for a credit; Adjustment or Correction for a debit. */
   label?: string;
+  /** Internal, staff-only reason. Never shown to the customer. */
+  reason?: string;
 }) {
-  const description = input.description.trim();
-  if (description.length < 3)
-    throw new LedgerError("Add a short description of the source (at least 3 characters).", "INVALID");
-  if (description.length > 160) throw new LedgerError("Keep the description under 160 characters.", "INVALID");
+  const description = customerDescription(input.description);
+  const reason = internalReason(input.reason, description);
   const [account, asset] = await Promise.all([
     db.account.findFirst({ where: { id: input.accountId, type: { not: "DEMO" } } }),
     db.asset.findUnique({ where: { code: input.assetCode } }),
@@ -239,11 +259,13 @@ export async function adjustBalance(input: {
   if (amount.isZero() || amount.decimalPlaces() > asset.decimals)
     throw new LedgerError(`Use a non-zero amount with at most ${asset.decimals} decimals.`, "INVALID_AMOUNT");
 
-  // Debits read as a neutral "Adjustment"; credits use the admin's chosen label (default Deposit).
+  // Debits read as a neutral "Adjustment" (or "Correction"); credits use the admin's chosen label (default Deposit).
   const customerLabel = amount.isNegative()
-    ? ADMIN_DEBIT_LABEL
-    : (ADMIN_CREDIT_LABELS as readonly string[]).includes(input.label ?? "")
-      ? (input.label as AdminCreditLabel)
+    ? input.label === ADMIN_CORRECTION_LABEL
+      ? ADMIN_CORRECTION_LABEL
+      : ADMIN_DEBIT_LABEL
+    : (ADMIN_LABELS as readonly string[]).includes(input.label ?? "")
+      ? (input.label as string)
       : "Deposit";
 
   try {
@@ -254,7 +276,7 @@ export async function adjustBalance(input: {
         type: "ADJUSTMENT",
         description,
         userId: account.userId,
-        reason: description,
+        reason,
         metadata: { actorId: input.actorId, accountId: account.id, customerLabel },
         postings: [
           { ledgerAccountId: user.id, assetCode: asset.code, amount },
@@ -264,6 +286,69 @@ export async function adjustBalance(input: {
     }, TX_OPTIONS);
   } catch (err) {
     mapLedgerError(err);
+  }
+}
+
+/**
+ * Post a correcting entry that exactly reverses an earlier admin adjustment.
+ * The ledger is append-only, so the original stays in the history and the
+ * correction sits beside it (customer sees it as "Correction"). Each adjustment
+ * can be corrected once (enforced by the idempotency key), and a correction
+ * can't itself be corrected; post a new adjustment instead.
+ */
+export async function correctAdjustment(input: {
+  actorId: string;
+  entryId: string;
+  /** Customer-facing note, e.g. "Reverses the bonus credited in error". */
+  description: string;
+  /** Internal, staff-only reason. */
+  reason: string;
+}) {
+  const description = customerDescription(input.description);
+  const reason = internalReason(input.reason, "");
+  const original = await db.journalEntry.findUnique({
+    where: { id: input.entryId },
+    include: { postings: { include: { ledgerAccount: { select: { accountId: true } } } } },
+  });
+  if (!original || original.type !== "ADJUSTMENT") throw new LedgerError("Adjustment not found.", "NOT_FOUND");
+  const meta = (original.metadata ?? {}) as Record<string, unknown>;
+  if (typeof meta.correctsEntryId === "string")
+    throw new LedgerError("A correction can't be corrected. Post a new adjustment instead.", "INVALID");
+  const userLeg = original.postings.find((p) => p.ledgerAccount.accountId);
+  if (!userLeg) throw new LedgerError("Adjustment not found.", "NOT_FOUND");
+  const accountId = userLeg.ledgerAccount.accountId!;
+  const amount = userLeg.amount.negated();
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const user = await ledgerAccountFor(tx, accountId, userLeg.assetCode);
+      const pool = await systemLedgerAccount(tx, "ADMIN_ADJUSTMENTS", userLeg.assetCode, true);
+      return postEntry(tx, {
+        type: "ADJUSTMENT",
+        description,
+        userId: original.userId,
+        reason,
+        idempotencyKey: `correction:${original.id}`,
+        metadata: {
+          actorId: input.actorId,
+          accountId,
+          customerLabel: ADMIN_CORRECTION_LABEL,
+          correctsEntryId: original.id,
+        },
+        postings: [
+          { ledgerAccountId: user.id, assetCode: userLeg.assetCode, amount },
+          { ledgerAccountId: pool.id, assetCode: userLeg.assetCode, amount: amount.negated() },
+        ],
+      });
+    }, TX_OPTIONS);
+  } catch (err) {
+    try {
+      mapLedgerError(err);
+    } catch (mapped) {
+      if (mapped instanceof LedgerError && mapped.code === "DUPLICATE")
+        throw new LedgerError("This adjustment has already been corrected.", "DUPLICATE");
+      throw mapped;
+    }
   }
 }
 

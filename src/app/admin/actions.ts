@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { assertPermission, audit, ForbiddenError } from "@/server/admin/rbac";
 import { reviewKyc } from "@/server/admin/kyc";
-import { adjustBalance, LedgerError } from "@/server/ledger";
+import { adjustBalance, correctAdjustment, LedgerError } from "@/server/ledger";
 import { revokeAllSessions } from "@/server/auth/session";
 import { completeDeposit, failDeposit } from "@/server/funding";
 import { advanceWithdrawal, rejectWithdrawal } from "@/server/withdrawals";
@@ -71,10 +71,37 @@ export async function setUserRole(_p: FormState | undefined, fd: FormData): Prom
   }
 }
 
+/**
+ * Audit details for a posted adjustment: who, how much of which coin, and why.
+ * Private to staff (the admin audit log is never shown to customers).
+ */
+async function adjustmentAudit(
+  admin: { name: string },
+  entry: { id: string; userId: string | null; description: string; reason: string | null; metadata: unknown },
+) {
+  const meta = entry.metadata as { accountId: string; customerLabel?: string };
+  const leg = await db.posting.findFirst({
+    where: { entryId: entry.id, ledgerAccount: { accountId: meta.accountId } },
+    select: { amount: true, assetCode: true },
+  });
+  return {
+    adminName: admin.name,
+    userId: entry.userId,
+    accountId: meta.accountId,
+    assetCode: leg?.assetCode ?? "",
+    amount: leg?.amount.toString() ?? "",
+    label: meta.customerLabel ?? "",
+    description: entry.description,
+    reason: entry.reason ?? "",
+  };
+}
+
 export async function adjustUserBalance(_p: FormState | undefined, fd: FormData): Promise<FormState> {
   try {
     const admin = await assertPermission("ledger.adjust");
     const accountId = String(fd.get("accountId"));
+    const why = reason.safeParse(fd.get("reason"));
+    if (!why.success) return { error: "Give an internal reason (at least 5 characters)." };
     const entry = await adjustBalance({
       actorId: admin.id,
       accountId,
@@ -82,22 +109,39 @@ export async function adjustUserBalance(_p: FormState | undefined, fd: FormData)
       amount: String(fd.get("amount")),
       description: String(fd.get("description") ?? ""),
       label: String(fd.get("label") ?? ""),
+      reason: why.data,
+    });
+    await audit(admin, "ledger.adjust", { type: "journal_entry", id: entry!.id }, await adjustmentAudit(admin, entry!));
+    revalidatePath(`/admin/users/${String(fd.get("userId"))}`);
+    return { message: "Adjustment posted to the ledger." };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+export async function correctUserAdjustment(_p: FormState | undefined, fd: FormData): Promise<FormState> {
+  try {
+    const admin = await assertPermission("ledger.adjust");
+    const entryId = String(fd.get("entryId"));
+    const why = reason.safeParse(fd.get("reason"));
+    if (!why.success) return { error: "Give an internal reason (at least 5 characters)." };
+    const entry = await correctAdjustment({
+      actorId: admin.id,
+      entryId,
+      description: String(fd.get("description") ?? ""),
+      reason: why.data,
     });
     await audit(
       admin,
-      "ledger.adjust",
+      "ledger.correct",
       { type: "journal_entry", id: entry!.id },
       {
-        accountId,
-        assetCode: String(fd.get("assetCode")),
-        amount: String(fd.get("amount")),
-        label: String(fd.get("label") ?? ""),
-        // Stored as the internal reason for the audit trail (also shown to the customer).
-        reason: String(fd.get("description") ?? ""),
+        ...(await adjustmentAudit(admin, entry!)),
+        correctsEntryId: entryId,
       },
     );
     revalidatePath(`/admin/users/${String(fd.get("userId"))}`);
-    return { message: "Adjustment posted to the ledger." };
+    return { message: "Correcting entry posted. The original stays in the history." };
   } catch (err) {
     return failure(err);
   }
