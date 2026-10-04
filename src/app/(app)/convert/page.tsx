@@ -31,9 +31,9 @@ export default async function ConvertPage({ searchParams }: PageProps<"/convert"
   const t = dict.app.convert;
 
   return (
-    <div className="mx-auto max-w-xl space-y-8">
+    <div className="mx-auto w-full max-w-2xl min-w-0 space-y-6 sm:space-y-8">
       <PageIntro title={t.title} intro={t.intro} back={{ href: "/accounts", label: dict.app.accounts.allAccounts }} />
-      <section className="glass rounded-[var(--radius-card)] p-6">
+      <section className="glass min-w-0 rounded-[var(--radius-card)] p-5 sm:p-8">
         <ConvertForm
           accounts={accounts.map((a) => ({
             id: a.id,
@@ -43,7 +43,11 @@ export default async function ConvertPage({ searchParams }: PageProps<"/convert"
           assets={assets}
           feeBps={fees.instant}
           slippagePct={MAX_SLIPPAGE_BPS / 100}
-          initial={{ accountId: param(sp.account), from: param(sp.from)?.toUpperCase(), to: param(sp.to)?.toUpperCase() }}
+          initial={{
+            accountId: param(sp.account),
+            from: param(sp.from)?.toUpperCase(),
+            to: param(sp.to)?.toUpperCase(),
+          }}
         />
       </section>
     </div>

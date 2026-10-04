@@ -23,7 +23,7 @@ export function KycGate({ action, status }: { action: string; status: string }) 
 export function SandboxBadge() {
   return (
     <span
-      className="rounded bg-warn/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-warn uppercase"
+      className="rounded bg-warn/20 px-1.5 py-0.5 text-xs font-bold tracking-wider text-warn uppercase"
       title="Test mode: no real money moves"
     >
       Sandbox

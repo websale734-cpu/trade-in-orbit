@@ -30,7 +30,7 @@ export default async function DepositPage({ searchParams }: PageProps<"/deposit"
   const intro = { title: t.actions.deposit, intro: t.depositIntro, back: { href: "/accounts", label: t.allAccounts } };
   if (user.kycStatus !== "APPROVED")
     return (
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 sm:space-y-8">
         <PageIntro {...intro} />
         <KycGate action="deposit" status={user.kycStatus} />
       </div>
@@ -54,7 +54,7 @@ export default async function DepositPage({ searchParams }: PageProps<"/deposit"
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <PageIntro {...intro}>
         <p className="text-sm text-muted">
           24-hour limit remaining:{" "}

@@ -43,23 +43,23 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <MarketProvider initial={snapshot}>
-      <div className="flex min-h-dvh flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="flex min-h-dvh flex-col pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0">
         <header className="sticky top-0 z-40 border-b border-line bg-bg/75 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-            <Link href="/dashboard" aria-label="Dashboard">
+          <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:gap-6 lg:px-8">
+            <Link href="/dashboard" aria-label="Dashboard" className="shrink-0 whitespace-nowrap">
               <Logo />
             </Link>
             <AppNav links={links} />
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               {user.role !== "USER" && (
                 <Link
                   href="/admin"
-                  className="hidden rounded-full bg-down/15 px-3 py-1.5 text-xs font-bold tracking-wider text-down sm:inline-block"
+                  className="hidden rounded-full bg-down/15 px-3 py-1.5 text-xs font-bold tracking-wider text-down xl:inline-block"
                 >
                   ADMIN
                 </Link>
               )}
-              <LanguageSwitcher className="max-sm:hidden" />
+              <LanguageSwitcher className="hidden lg:block" />
               <ThemeToggle />
               <Link
                 href="/notifications"
@@ -68,13 +68,13 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
               >
                 <Bell className="h-[18px] w-[18px]" />
                 {unread > 0 && (
-                  <span className="bg-brand absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[10px] font-bold text-white">
+                  <span className="bg-brand absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full px-1 text-xs leading-none font-bold text-white">
                     {unread > 9 ? "9+" : unread}
                   </span>
                 )}
               </Link>
               <span
-                className="bg-brand hidden h-10 w-10 place-items-center rounded-full text-sm font-semibold text-white sm:grid"
+                className="bg-brand hidden h-10 w-10 place-items-center rounded-full text-sm font-semibold text-white lg:grid"
                 title={user.name}
               >
                 {initials}
@@ -92,7 +92,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-10">{children}</main>
+        {/* Extra bottom space below lg so the floating chat button never covers the last block. */}
+        <main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 pt-6 pb-24 sm:px-6 sm:pt-8 lg:px-8 lg:pt-10 lg:pb-16">
+          {children}
+        </main>
         <MobileTabBar links={mobileLinks} />
         <ChatWidget />
       </div>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { CoinPriceTile, CoinValue } from "@/components/accounts/live-value";
 import { AssetIcon, MoneyActions, PageIntro } from "@/components/accounts/page-parts";
+import { PageStack, Panel } from "@/components/app/ui";
 import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
@@ -10,6 +11,7 @@ import { getMarketSnapshot } from "@/lib/market/coingecko";
 import { getDictionary } from "@/i18n/server";
 import { fmt } from "@/i18n/format";
 import { assetLabel, formatQty } from "@/lib/assets";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Coin" };
 
@@ -43,7 +45,7 @@ export default async function CoinPage({ params }: PageProps<"/accounts/[account
   const image = snapshot.tickers.find((x) => x.symbol === code)?.image ?? null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
+    <PageStack>
       <PageIntro
         title={assetLabel(code, asset.name)}
         icon={<AssetIcon code={code} src={image} size={44} />}
@@ -51,55 +53,69 @@ export default async function CoinPage({ params }: PageProps<"/accounts/[account
         back={{ href: `/accounts/${account.id}`, label: account.name }}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <section aria-labelledby="have-label" className="glass rounded-[var(--radius-card)] p-6">
-          <p id="have-label" className="text-sm text-muted">
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+        <section aria-labelledby="have-label" className="glass ring-brand min-w-0 rounded-[var(--radius-card)] p-6">
+          <p id="have-label" className="text-sm font-medium text-muted">
             {t.coin.youHave}
           </p>
-          <CoinValue code={code} amount={balance} className="mt-1 block text-5xl font-semibold tracking-tight" />
+          <CoinValue
+            code={code}
+            amount={balance}
+            className="tabular mt-2 block text-4xl font-semibold tracking-tight break-words sm:text-5xl"
+          />
           <p className="tabular mt-2 text-sm text-muted">
             {formatQty(balance, asset.decimals)} {code}
           </p>
         </section>
-        <section className="glass rounded-[var(--radius-card)] p-6">
-          {code === "USD" ? <p className="text-sm leading-relaxed text-muted">{t.coin.cashNote}</p> : <CoinPriceTile code={code} />}
+        <section className="glass min-w-0 rounded-[var(--radius-card)] p-6">
+          {code === "USD" ? (
+            <p className="text-sm leading-relaxed text-muted">{t.coin.cashNote}</p>
+          ) : (
+            <CoinPriceTile code={code} />
+          )}
         </section>
+        <div className="min-w-0 sm:col-span-2 xl:col-span-1">
+          <MoneyActions labels={t.actions} context={{ account: account.id, asset: code }} compact />
+        </div>
       </div>
 
-      <MoneyActions labels={t.actions} context={{ account: account.id, asset: code }} />
-
-      <section aria-labelledby="activity-heading" className="space-y-4">
-        <h2 id="activity-heading" className="text-lg font-semibold">
-          {t.coin.activity}
-        </h2>
+      <Panel title={t.coin.activity}>
         {postings.length === 0 ? (
-          <p className="glass rounded-[var(--radius-card)] p-6 text-sm text-muted">{t.coin.activityEmpty}</p>
+          <p className="text-sm text-muted">{t.coin.activityEmpty}</p>
         ) : (
-          <ul className="glass divide-y divide-line rounded-[var(--radius-card)] px-5">
+          <ul className="divide-y divide-line">
             {postings.map((p) => {
               const incoming = Number(p.amount) > 0;
               const Icon = incoming ? ArrowDownLeft : ArrowUpRight;
               return (
-                <li key={p.id} className="flex items-center gap-3 py-4 text-sm">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-strong">
-                    <Icon className="h-4 w-4 text-muted" aria-hidden />
+                <li key={p.id} className="flex items-center gap-3 py-3.5 text-sm sm:gap-4">
+                  <span
+                    className={cn(
+                      "grid h-10 w-10 shrink-0 place-items-center rounded-full",
+                      incoming ? "bg-up/10 text-up" : "bg-down/10 text-down",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{t.entryTypes[p.entry.type]}</span>
-                    <span className="block truncate text-xs text-muted">
-                      {p.entry.description} · <LocalTime date={p.createdAt.toISOString()} />
-                    </span>
+                    <span className="block truncate font-semibold">{t.entryTypes[p.entry.type]}</span>
+                    <span className="block truncate text-xs text-muted sm:text-sm">{p.entry.description}</span>
                   </span>
-                  <span className="tabular font-medium whitespace-nowrap">
-                    {incoming ? "+" : "−"}
-                    {formatQty(Math.abs(Number(p.amount)), asset.decimals)} {code}
+                  <span className="shrink-0 text-right">
+                    <span className={cn("tabular block font-semibold", incoming && "text-up")}>
+                      {incoming ? "+" : "−"}
+                      {formatQty(Math.abs(Number(p.amount)), asset.decimals)} {code}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      <LocalTime date={p.createdAt.toISOString()} />
+                    </span>
                   </span>
                 </li>
               );
             })}
           </ul>
         )}
-      </section>
-    </div>
+      </Panel>
+    </PageStack>
   );
 }

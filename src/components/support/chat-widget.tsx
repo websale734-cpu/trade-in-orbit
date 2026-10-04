@@ -89,7 +89,7 @@ export function ChatWidget() {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close chat" : "Chat with support"}
         aria-expanded={open}
-        className="bg-brand fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 grid h-14 w-14 place-items-center rounded-full text-white shadow-[0_8px_30px_-8px_var(--glow-violet)] transition-transform hover:scale-105 md:right-6 md:bottom-6"
+        className="bg-brand fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 grid h-14 w-14 place-items-center rounded-full text-white shadow-[0_8px_30px_-8px_var(--glow-violet)] transition-transform hover:scale-105 lg:right-6 lg:bottom-6"
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
       </button>
@@ -97,13 +97,18 @@ export function ChatWidget() {
         <section
           role="dialog"
           aria-label="Chat with Trade In Orbit support"
-          className="fixed inset-x-3 bottom-[calc(9.75rem+env(safe-area-inset-bottom))] z-40 flex max-h-[60dvh] flex-col overflow-hidden rounded-2xl border border-line bg-bg shadow-2xl sm:left-auto sm:w-96 md:right-6 md:bottom-24"
+          className="fixed inset-x-3 bottom-[calc(9.75rem+env(safe-area-inset-bottom))] z-40 flex max-h-[60dvh] flex-col overflow-hidden rounded-2xl border border-line bg-bg shadow-2xl sm:left-auto sm:w-96 lg:right-6 lg:bottom-24"
         >
           <header className="bg-brand px-4 py-3 text-white">
             <p className="font-semibold">Trade In Orbit support</p>
             <p className="text-xs text-white/80">We usually reply within a few minutes during business hours.</p>
           </header>
-          <ol ref={listRef} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm" aria-live="polite" data-testid="chat-messages">
+          <ol
+            ref={listRef}
+            className="flex-1 space-y-2 overflow-y-auto p-3 text-sm"
+            aria-live="polite"
+            data-testid="chat-messages"
+          >
             {!loaded ? (
               <li className="flex justify-center py-6 text-muted">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -119,7 +124,7 @@ export function ChatWidget() {
                       m.fromStaff ? "rounded-bl-md border border-line bg-surface" : "bg-brand rounded-br-md text-white",
                     )}
                   >
-                    {m.fromStaff && <p className="text-[11px] text-muted">{m.author}</p>}
+                    {m.fromStaff && <p className="text-xs text-muted">{m.author}</p>}
                     <p className="break-words whitespace-pre-wrap">{m.body}</p>
                   </div>
                 </li>

@@ -10,9 +10,9 @@ export default async function OpenAccountPage() {
   await requireUser("/accounts/new");
   const t = (await getDictionary()).app.accounts;
   return (
-    <div className="mx-auto max-w-xl space-y-8">
+    <div className="mx-auto w-full max-w-2xl min-w-0 space-y-6 sm:space-y-8">
       <PageIntro title={t.openTitle} intro={t.openIntro} back={{ href: "/accounts", label: t.allAccounts }} />
-      <section className="glass rounded-[var(--radius-card)] p-6">
+      <section className="glass min-w-0 rounded-[var(--radius-card)] p-5 sm:p-8">
         <OpenAccountForm />
       </section>
     </div>

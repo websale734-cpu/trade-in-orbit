@@ -27,7 +27,7 @@ export function Converter({
   const f = Number(feeAmount) || 0;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
       <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6" aria-label="Converter">
         <h2 className="font-semibold">Converter</h2>
         <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-end gap-3">

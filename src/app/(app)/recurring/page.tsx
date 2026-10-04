@@ -18,7 +18,10 @@ export default async function RecurringPage() {
   const { user } = await requireUser("/recurring");
   await ensureDefaultAccount(user.id);
   const [plans, accounts, tradable] = await Promise.all([
-    db.recurringBuy.findMany({ where: { userId: user.id, status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" } }),
+    db.recurringBuy.findMany({
+      where: { userId: user.id, status: { not: "CANCELLED" } },
+      orderBy: { createdAt: "desc" },
+    }),
     db.account.findMany({
       where: { userId: user.id, archivedAt: null, type: { not: "DEMO" } },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -31,17 +34,17 @@ export default async function RecurringPage() {
   const names = new Map(accounts.map((a) => [a.id, a.name]));
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Recurring buys</h1>
-        <p className="mt-1 text-sm text-muted">
-          Buy a fixed dollar amount on a schedule (dollar-cost averaging). Crypto prices can fall as well as rise; buying
-          regularly doesn&apos;t guarantee a profit.
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
+          Buy a fixed dollar amount on a schedule (dollar-cost averaging). Crypto prices can fall as well as rise;
+          buying regularly doesn&apos;t guarantee a profit.
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-          <h2 className="flex items-center gap-2 font-semibold">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <section className="glass min-w-0 rounded-[var(--radius-card)] p-5 sm:p-6">
+          <h2 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
             <Repeat className="h-4 w-4 text-accent" /> New schedule
           </h2>
           {plans.length >= MAX_ACTIVE_RECURRING ? (
@@ -50,8 +53,8 @@ export default async function RecurringPage() {
             <RecurringForm coins={coins} accounts={accounts} min={MIN_RECURRING_USD} />
           )}
         </section>
-        <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-          <h2 className="font-semibold">Your schedules</h2>
+        <section className="glass min-w-0 rounded-[var(--radius-card)] p-5 sm:p-6">
+          <h2 className="text-base font-semibold sm:text-lg">Your schedules</h2>
           {plans.length === 0 ? (
             <p className="mt-3 text-sm text-muted">No recurring buys yet.</p>
           ) : (
@@ -89,7 +92,10 @@ export default async function RecurringPage() {
                         <input type="hidden" name="op" value={op} />
                         <button
                           type="submit"
-                          className={cn("text-sm font-medium capitalize text-muted", op === "cancel" ? "hover:text-down" : "hover:text-fg")}
+                          className={cn(
+                            "text-sm font-medium text-muted capitalize",
+                            op === "cancel" ? "hover:text-down" : "hover:text-fg",
+                          )}
                         >
                           {op}
                         </button>

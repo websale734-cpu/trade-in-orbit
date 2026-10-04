@@ -6,6 +6,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { requireUser } from "@/server/auth/dal";
 import { statementMonths, userEntries } from "@/server/statements";
 import { HistoryList, type HistoryRow } from "./history-list";
+import { EmptyState, PageHeader, PageStack, Panel, segmentedItem, segmentedWrap } from "@/components/app/ui";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "History" };
@@ -36,78 +37,88 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
   const tab = sp.tab === "statements" ? "statements" : "transactions";
 
   const tabs = (
-    <div className="flex rounded-full border border-line bg-surface p-1 text-sm font-semibold" role="tablist">
+    <div className={segmentedWrap} role="tablist">
       {(["transactions", "statements"] as const).map((t) => (
         <Link
           key={t}
           href={t === "transactions" ? "/history" : "/history?tab=statements"}
           role="tab"
           aria-selected={tab === t}
-          className={cn("rounded-full px-4 py-1.5 capitalize", tab === t ? "bg-brand text-white" : "text-muted")}
+          className={cn(segmentedItem, tab === t ? "bg-brand text-white" : "text-muted hover:text-fg")}
         >
           {t === "statements" ? "Statements & tax" : "Transactions"}
         </Link>
       ))}
     </div>
   );
+  const header = (
+    <PageHeader
+      title="History"
+      subtitle="Every deposit, withdrawal, trade and transfer on your accounts. Tap a row for its full details."
+      actions={tabs}
+    />
+  );
 
   if (tab === "statements") {
     const months = await statementMonths(user.id);
     const years = [...new Set(months.map((m) => Number(m.slice(0, 4))))];
+    const rowLink =
+      "inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:border-line-strong hover:bg-surface-strong";
     return (
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">History</h1>
-          {tabs}
-        </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-            <h2 className="font-semibold">Monthly statements</h2>
-            <p className="mt-1 text-sm text-muted">Opening and closing balances plus every transaction, as a PDF.</p>
-            <ul className="mt-3 divide-y divide-line text-sm" data-testid="statements">
-              {months.map((m) => (
-                <li key={m} className="flex items-center justify-between py-2.5">
-                  <span>
-                    {new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-GB", {
-                      month: "long",
-                      year: "numeric",
-                      timeZone: "UTC",
-                    })}
-                  </span>
-                  <a
-                    href={`/history/statement/${m}`}
-                    className="inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
-                  >
-                    <FileText className="h-4 w-4" /> PDF
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-            <h2 className="font-semibold">Tax report</h2>
-            <p className="mt-1 text-sm text-muted">
-              Every purchase, sale, swap and reward in a calendar year with its USD value at the time, for your tax
-              adviser or tax software. This isn&apos;t tax advice.
-            </p>
-            <ul className="mt-3 divide-y divide-line text-sm">
-              {years.map((y) => (
-                <li key={y} className="flex items-center justify-between py-2.5">
-                  <span>{y}</span>
-                  <span className="flex gap-4">
-                    <a href={`/history/tax?year=${y}&format=csv`} className="font-medium text-accent hover:underline">
-                      CSV
+      <PageStack>
+        {header}
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+          <Panel
+            title="Monthly statements"
+            description="Opening and closing balances plus every transaction, as a PDF."
+          >
+            {months.length === 0 ? (
+              <EmptyState icon={<FileText className="h-5 w-5" />} title="No statements yet." />
+            ) : (
+              <ul className="divide-y divide-line text-sm" data-testid="statements">
+                {months.map((m) => (
+                  <li key={m} className="flex items-center justify-between gap-3 py-3.5">
+                    <span className="font-medium">
+                      {new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-GB", {
+                        month: "long",
+                        year: "numeric",
+                        timeZone: "UTC",
+                      })}
+                    </span>
+                    <a href={`/history/statement/${m}`} className={rowLink}>
+                      <FileText className="h-4 w-4" /> PDF
                     </a>
-                    <a href={`/history/tax?year=${y}&format=pdf`} className="font-medium text-accent hover:underline">
-                      PDF
-                    </a>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+          <Panel
+            title="Tax report"
+            description="Every purchase, sale, swap and reward in a calendar year with its USD value at the time, for your tax adviser or tax software. This isn't tax advice."
+          >
+            {years.length === 0 ? (
+              <EmptyState icon={<FileText className="h-5 w-5" />} title="No tax years yet." />
+            ) : (
+              <ul className="divide-y divide-line text-sm">
+                {years.map((y) => (
+                  <li key={y} className="flex items-center justify-between gap-3 py-3.5">
+                    <span className="font-medium">{y}</span>
+                    <span className="flex flex-wrap justify-end gap-2">
+                      <a href={`/history/tax?year=${y}&format=csv`} className={rowLink}>
+                        CSV
+                      </a>
+                      <a href={`/history/tax?year=${y}&format=pdf`} className={rowLink}>
+                        PDF
+                      </a>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
         </div>
-      </div>
+      </PageStack>
     );
   }
 
@@ -135,60 +146,72 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
   }));
   const params = new URLSearchParams(Object.entries({ type: type ?? "", q, from, to }).filter(([, v]) => v));
   const pageHref = (p: number) => `/history?${new URLSearchParams([...params, ["page", String(p)]])}`;
+  const pager =
+    "inline-flex h-11 items-center gap-1.5 rounded-full border border-line bg-surface px-5 text-sm font-medium transition-colors hover:border-line-strong hover:bg-surface-strong";
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">History</h1>
-        {tabs}
-      </div>
+    <PageStack>
+      {header}
 
-      <form
-        className="glass grid gap-3 rounded-[var(--radius-card)] p-4 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto]"
-        role="search"
-      >
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-subtle" />
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search descriptions"
-            aria-label="Search"
-            className={`${inputClasses} pl-10`}
-          />
-        </div>
-        <select name="type" defaultValue={type ?? ""} aria-label="Type" className={inputClasses}>
-          <option value="">All types</option>
-          {TYPES.map((t) => (
-            <option key={t} value={t}>
-              {TYPE_LABEL[t]}
-            </option>
-          ))}
-        </select>
-        <input type="date" name="from" defaultValue={from} aria-label="From date" className={inputClasses} />
-        <input type="date" name="to" defaultValue={to} aria-label="To date" className={inputClasses} />
-        <div className="flex gap-2">
-          <button type="submit" className={buttonClasses({ size: "md", className: "h-12 flex-1" })}>
-            Filter
-          </button>
-          <a
-            href={`/history/export?${params}`}
-            className={buttonClasses({ variant: "secondary", size: "md", className: "h-12" })}
-            aria-label="Download CSV"
-            title="Download CSV"
+      <Panel title="Filter" aria-label="Filter transactions">
+        <form className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-[1.6fr_1fr_1fr_1fr_auto]" role="search">
+          <div className="relative sm:col-span-2 lg:col-span-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-subtle" />
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Search descriptions"
+              aria-label="Search"
+              className={`${inputClasses} pl-10`}
+            />
+          </div>
+          <select
+            name="type"
+            defaultValue={type ?? ""}
+            aria-label="Type"
+            className={cn(inputClasses, "sm:col-span-2 lg:col-span-1")}
           >
-            <Download className="h-4 w-4" />
-          </a>
-        </div>
-      </form>
+            <option value="">All types</option>
+            {TYPES.map((t) => (
+              <option key={t} value={t}>
+                {TYPE_LABEL[t]}
+              </option>
+            ))}
+          </select>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-muted lg:sr-only">From</span>
+            <input type="date" name="from" defaultValue={from} aria-label="From date" className={inputClasses} />
+          </label>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-muted lg:sr-only">To</span>
+            <input type="date" name="to" defaultValue={to} aria-label="To date" className={inputClasses} />
+          </label>
+          <div className="flex gap-2 sm:col-span-2 lg:col-span-1 lg:self-end">
+            <button
+              type="submit"
+              className={buttonClasses({ size: "md", className: "h-12 flex-1 lg:flex-none lg:px-6" })}
+            >
+              Filter
+            </button>
+            <a
+              href={`/history/export?${params}`}
+              className={buttonClasses({ variant: "secondary", size: "md", className: "h-12 w-12 shrink-0 px-0" })}
+              aria-label="Download CSV"
+              title="Download CSV"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+          </div>
+        </form>
+      </Panel>
 
-      <section className="glass rounded-[var(--radius-card)] p-2 sm:p-4">
+      <Panel title="Transactions" bodyClassName="-mx-3 sm:-mx-4">
         <HistoryList rows={historyRows} />
-      </section>
+      </Panel>
 
-      <nav className="flex items-center justify-between text-sm" aria-label="Pagination">
+      <nav className="flex items-center justify-between gap-3 text-sm" aria-label="Pagination">
         {page > 1 ? (
-          <Link href={pageHref(page - 1)} className="font-medium text-accent hover:underline">
+          <Link href={pageHref(page - 1)} className={pager}>
             ← Newer
           </Link>
         ) : (
@@ -196,13 +219,13 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
         )}
         <span className="text-muted">Page {page}</span>
         {hasNext ? (
-          <Link href={pageHref(page + 1)} className="font-medium text-accent hover:underline">
+          <Link href={pageHref(page + 1)} className={pager}>
             Older →
           </Link>
         ) : (
           <span />
         )}
       </nav>
-    </div>
+    </PageStack>
   );
 }

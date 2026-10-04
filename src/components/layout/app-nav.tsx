@@ -5,7 +5,15 @@ import { usePathname } from "next/navigation";
 import { ArrowLeftRight, CandlestickChart, History, Home, LayoutGrid, ShieldCheck, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ICONS = { home: Home, wallet: Wallet, chart: CandlestickChart, trade: ArrowLeftRight, shield: ShieldCheck, history: History, more: LayoutGrid };
+const ICONS = {
+  home: Home,
+  wallet: Wallet,
+  chart: CandlestickChart,
+  trade: ArrowLeftRight,
+  shield: ShieldCheck,
+  history: History,
+  more: LayoutGrid,
+};
 type NavLink = { href: string; label: string; icon: keyof typeof ICONS };
 
 function isActive(pathname: string, href: string) {
@@ -16,14 +24,14 @@ function isActive(pathname: string, href: string) {
 export function AppNav({ links }: { links: NavLink[] }) {
   const pathname = usePathname();
   return (
-    <nav className="ml-4 hidden items-center gap-1 md:flex" aria-label="Main">
+    <nav className="hidden min-w-0 items-center gap-1 lg:flex" aria-label="Main">
       {links.map((l) => (
         <Link
           key={l.href}
           href={l.href}
           aria-current={isActive(pathname, l.href) ? "page" : undefined}
           className={cn(
-            "rounded-full px-3 py-2 text-sm transition-colors",
+            "rounded-full px-3 py-2 text-sm whitespace-nowrap transition-colors xl:px-4",
             isActive(pathname, l.href)
               ? "bg-surface-strong font-medium text-fg"
               : "text-muted hover:bg-surface hover:text-fg",
@@ -42,9 +50,9 @@ export function MobileTabBar({ links }: { links: NavLink[] }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
     >
-      <ul className="mx-auto flex max-w-md justify-around">
+      <ul className="mx-auto flex max-w-xl justify-around px-2">
         {links.map((l) => {
           const Icon = ICONS[l.icon];
           const active = isActive(pathname, l.href);
@@ -54,7 +62,7 @@ export function MobileTabBar({ links }: { links: NavLink[] }) {
                 href={l.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
+                  "flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors",
                   active ? "text-accent" : "text-subtle",
                 )}
               >

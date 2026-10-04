@@ -5,7 +5,8 @@ import type { Dictionary } from "@/i18n/dictionaries/en";
 import { cn } from "@/lib/utils";
 
 /** Keyboard focus ring shared by the accounts pages' card links. */
-export const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+export const focusRing =
+  "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 /** Page title with one plain-language sentence about what the page is for, and an optional way back. */
 export function PageIntro({
@@ -26,17 +27,20 @@ export function PageIntro({
       {back && (
         <Link
           href={back.href}
-          className={cn("inline-flex items-center gap-1.5 rounded-full text-sm text-muted transition-colors hover:text-fg", focusRing)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full text-sm text-muted transition-colors hover:text-fg",
+            focusRing,
+          )}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           {back.label}
         </Link>
       )}
-      <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight">
+      <h1 className="flex min-w-0 items-center gap-3 text-2xl font-semibold tracking-tight sm:text-3xl">
         {icon}
         {title}
       </h1>
-      {intro && <p className="max-w-xl text-base leading-relaxed text-muted">{intro}</p>}
+      {intro && <p className="max-w-2xl text-sm leading-relaxed text-muted sm:text-base">{intro}</p>}
       {children}
     </header>
   );
@@ -49,9 +53,12 @@ export function PageIntro({
 export function MoneyActions({
   labels,
   context = {},
+  compact = false,
 }: {
   labels: Dictionary["app"]["accounts"]["actions"];
   context?: { account?: string; asset?: string };
+  /** Always two columns, for when the actions sit in a narrow side column. */
+  compact?: boolean;
 }) {
   const query = (params: Record<string, string | undefined>) => {
     const qs = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1])).toString();
@@ -74,13 +81,13 @@ export function MoneyActions({
     { href: "/withdraw", label: labels.withdraw, hint: labels.withdrawHint, Icon: ArrowUpFromLine },
   ];
   return (
-    <nav aria-label="Money actions" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <nav aria-label="Money actions" className={cn("grid grid-cols-2 gap-3 sm:gap-4", !compact && "sm:grid-cols-4")}>
       {items.map(({ href, label, hint, Icon }) => (
         <Link
           key={label}
           href={href}
           className={cn(
-            "glass group flex flex-col items-start gap-3 rounded-2xl p-4 transition-colors hover:bg-surface-strong",
+            "glass group flex min-w-0 flex-col items-start gap-3 rounded-2xl p-4 transition-colors hover:bg-surface-strong sm:p-5",
             focusRing,
           )}
         >

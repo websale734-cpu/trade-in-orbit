@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { CoinValue, LiveValue } from "@/components/accounts/live-value";
 import { AssetIcon, MoneyActions, PageIntro, focusRing } from "@/components/accounts/page-parts";
+import { PageStack, Panel } from "@/components/app/ui";
 import { ButtonLink } from "@/components/ui/button";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
@@ -37,28 +38,35 @@ export default async function AccountPage({ params }: PageProps<"/accounts/[acco
   );
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
-      <PageIntro title={account.name} intro={t.typeHints[account.type]} back={{ href: "/accounts", label: t.allAccounts }} />
+    <PageStack>
+      <PageIntro
+        title={account.name}
+        intro={t.typeHints[account.type]}
+        back={{ href: "/accounts", label: t.allAccounts }}
+      />
 
-      <section aria-labelledby="value-label" className="glass rounded-[var(--radius-card)] p-6 sm:p-8">
-        <p id="value-label" className="text-sm font-medium text-muted">
-          {t.accountValue}
-        </p>
-        <LiveValue
-          holdings={coins.map((l) => ({ code: l.assetCode, amount: l.balance.toString() }))}
-          className="mt-2 block text-5xl font-semibold tracking-tight"
-        />
-        <p className="mt-3 text-sm text-muted">{t.liveNote}</p>
-      </section>
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <section
+          aria-labelledby="value-label"
+          className="glass ring-brand flex min-w-0 flex-col justify-center rounded-[var(--radius-card)] p-6 sm:p-8"
+        >
+          <p id="value-label" className="text-sm font-medium text-muted">
+            {t.accountValue}
+          </p>
+          <LiveValue
+            holdings={coins.map((l) => ({ code: l.assetCode, amount: l.balance.toString() }))}
+            className="tabular mt-2 block text-4xl font-semibold tracking-tight break-words sm:text-5xl"
+          />
+          <p className="mt-3 text-sm text-muted">{t.liveNote}</p>
+        </section>
+        <div className="min-w-0">
+          <MoneyActions labels={t.actions} context={{ account: account.id }} compact />
+        </div>
+      </div>
 
-      <MoneyActions labels={t.actions} context={{ account: account.id }} />
-
-      <section aria-labelledby="coins-heading" className="space-y-4">
-        <h2 id="coins-heading" className="text-lg font-semibold">
-          {t.yourCoins}
-        </h2>
+      <Panel title={t.yourCoins} bodyClassName={coins.length ? "-mx-3 sm:-mx-4" : undefined}>
         {coins.length === 0 ? (
-          <div className="glass rounded-[var(--radius-card)] p-6 text-center sm:p-8">
+          <div className="py-4 text-center">
             <p className="font-medium">{t.noCoins}</p>
             <p className="mt-1 text-sm text-muted">{t.noCoinsHint}</p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -69,28 +77,35 @@ export default async function AccountPage({ params }: PageProps<"/accounts/[acco
             </div>
           </div>
         ) : (
-          <ul className="glass divide-y divide-line overflow-hidden rounded-[var(--radius-card)]">
+          <ul className="grid gap-1 xl:grid-cols-2 xl:gap-x-3">
             {coins.map((l) => (
-              <li key={l.id}>
+              <li key={l.id} className="min-w-0">
                 <Link
                   href={`/accounts/${account.id}/${l.assetCode}`}
-                  className={cn("flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-strong", focusRing)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-3.5 transition-colors hover:bg-surface-strong sm:gap-4 sm:px-4",
+                    focusRing,
+                  )}
                 >
                   <AssetIcon code={l.assetCode} src={tickers.get(l.assetCode)?.image ?? null} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{assetLabel(l.assetCode, l.asset.name)}</span>
-                    <span className="tabular block truncate text-sm text-muted">
+                    <span className="block truncate font-semibold">{assetLabel(l.assetCode, l.asset.name)}</span>
+                    <span className="tabular block truncate text-xs text-muted sm:text-sm">
                       {formatQty(l.balance.toString(), l.asset.decimals)} {l.assetCode}
                     </span>
                   </span>
-                  <CoinValue code={l.assetCode} amount={l.balance.toString()} className="text-right font-semibold" />
+                  <CoinValue
+                    code={l.assetCode}
+                    amount={l.balance.toString()}
+                    className="tabular shrink-0 text-right font-semibold"
+                  />
                   <ChevronRight className="h-5 w-5 shrink-0 text-subtle" aria-hidden />
                 </Link>
               </li>
             ))}
           </ul>
         )}
-      </section>
-    </div>
+      </Panel>
+    </PageStack>
   );
 }

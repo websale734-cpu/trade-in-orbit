@@ -386,6 +386,9 @@ const es = {
       assets: "activos",
       showBalance: "Mostrar saldo",
       hideBalance: "Ocultar saldo",
+      dayChange: "Cambio en 24 h",
+      cash: "Saldo en efectivo",
+      cashHint: "Disponible para comprar monedas",
       currency: "Mostrar en",
       quick: { deposit: "Depositar", withdraw: "Retirar", buy: "Comprar", sell: "Vender", swap: "Intercambiar" },
       watchlist: "Lista de seguimiento",
@@ -529,6 +532,11 @@ const es = {
       subtitle:
         "Precios en vivo. Marca una moneda con una estrella para añadirla a la lista de seguimiento de tu panel.",
       watch: "Seguir",
+      topGainer: "Mayor subida (24 h)",
+      topLoser: "Mayor bajada (24 h)",
+      watching: "En tu lista de seguimiento",
+      coinsCount: "{n} monedas",
+      allCoins: "Todas las monedas",
     },
     notifications: {
       title: "Notificaciones",

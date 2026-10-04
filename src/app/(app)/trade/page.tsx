@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FlaskConical } from "lucide-react";
+import { Activity, FlaskConical, ListOrdered } from "lucide-react";
 import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
 import { ensureDefaultAccount } from "@/server/ledger";
 import { ensureDemoAccount, matchOpenOrders, userTradeFees } from "@/server/trading";
 import { trackedCoins } from "@/config/coins";
+import { EmptyState, PageHeader, PageStack, Panel, segmentedItem, segmentedWrap } from "@/components/app/ui";
 import { cn } from "@/lib/utils";
 import { cancelLimitOrder } from "./actions";
 import { TradePanel } from "./trade-panel";
@@ -53,42 +54,56 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
     .filter((c) => open.has(c.symbol))
     .map((c) => ({ code: c.symbol, name: c.name, chartable: !!c.binanceSymbol }));
 
+  const demoTag = demo && <span className="text-xs font-bold tracking-wider text-warn">DEMO</span>;
+  const sideBadge = (s: string) => (
+    <span
+      className={cn(
+        "grid h-10 w-14 shrink-0 place-items-center rounded-xl text-xs font-bold tracking-wide",
+        s === "BUY" ? "bg-up/15 text-up" : "bg-down/15 text-down",
+      )}
+    >
+      {s}
+    </span>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-          Trade
-          {demo && (
+    <PageStack>
+      <PageHeader
+        title="Trade"
+        subtitle="Buy, sell, swap or place a limit order at live prices. The full fee is shown before you confirm."
+        badge={
+          demo && (
             <span className="rounded-md bg-warn px-2 py-0.5 text-sm font-bold tracking-widest text-black">DEMO</span>
-          )}
-        </h1>
-        <div
-          className="flex rounded-full border border-line bg-surface p-1 text-sm font-semibold"
-          role="tablist"
-          aria-label="Trading mode"
-        >
-          <Link
-            href={`/trade?side=${side}`}
-            role="tab"
-            aria-selected={!demo}
-            className={cn("rounded-full px-4 py-1.5", !demo ? "bg-brand text-white" : "text-muted")}
-          >
-            Real
-          </Link>
-          <Link
-            href={`/trade?mode=demo&side=${side}`}
-            role="tab"
-            aria-selected={demo}
-            className={cn("rounded-full px-4 py-1.5", demo ? "bg-warn text-black" : "text-muted")}
-          >
-            Demo
-          </Link>
-        </div>
-      </div>
+          )
+        }
+        actions={
+          <div className={segmentedWrap} role="tablist" aria-label="Trading mode">
+            <Link
+              href={`/trade?side=${side}`}
+              role="tab"
+              aria-selected={!demo}
+              className={cn(segmentedItem, !demo ? "bg-brand text-white" : "text-muted hover:text-fg")}
+            >
+              Real
+            </Link>
+            <Link
+              href={`/trade?mode=demo&side=${side}`}
+              role="tab"
+              aria-selected={demo}
+              className={cn(segmentedItem, demo ? "bg-warn text-black" : "text-muted hover:text-fg")}
+            >
+              Demo
+            </Link>
+          </div>
+        }
+      />
 
       {demo && (
-        <div className="flex items-center gap-3 rounded-2xl border-2 border-warn bg-warn/10 p-4 text-sm" role="note">
-          <FlaskConical className="h-5 w-5 shrink-0 text-warn" />
+        <div
+          className="flex items-start gap-3 rounded-[var(--radius-card)] border-2 border-warn bg-warn/10 p-5 text-sm leading-relaxed"
+          role="note"
+        >
+          <FlaskConical className="mt-0.5 h-5 w-5 shrink-0 text-warn" />
           <p>
             <strong>DEMO MODE:</strong> you&apos;re trading with virtual funds at live prices. Nothing here is real
             money, and demo balances can&apos;t be withdrawn or moved to your real accounts.
@@ -96,43 +111,48 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-        <TradePanel
-          key={demo ? "demo" : "real"}
-          demo={demo}
-          initialTab={side as "buy" | "sell" | "swap" | "limit"}
-          accounts={accountData}
-          coins={coins}
-          fees={fees}
-        />
-        <OrderBook coins={coins.filter((c) => c.chartable).map((c) => c.code)} />
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.1fr_1fr]">
+        <div className="min-w-0">
+          <TradePanel
+            key={demo ? "demo" : "real"}
+            demo={demo}
+            initialTab={side as "buy" | "sell" | "swap" | "limit"}
+            accounts={accountData}
+            coins={coins}
+            fees={fees}
+          />
+        </div>
+        <div className="min-w-0">
+          <OrderBook coins={coins.filter((c) => c.chartable).map((c) => c.code)} />
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-          <h2 className="font-semibold">
-            Open limit orders {demo && <span className="text-xs font-bold text-warn">DEMO</span>}
-          </h2>
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <Panel
+          title={<span className="flex items-center gap-2">Open limit orders {demoTag}</span>}
+          description="Limit orders fill at your price against Trade In Orbit's liquidity once the market reaches it. Funds stay reserved until then."
+        >
           {openOrders.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">No open orders.</p>
+            <EmptyState icon={<ListOrdered className="h-5 w-5" />} title="No open orders." />
           ) : (
-            <ul className="mt-3 divide-y divide-line text-sm">
+            <ul className="divide-y divide-line text-sm">
               {openOrders.map((o) => (
-                <li key={o.id} className="flex items-center gap-3 py-3">
-                  <span
-                    className={cn(
-                      "rounded px-2 py-0.5 text-xs font-bold",
-                      o.side === "BUY" ? "bg-up/15 text-up" : "bg-down/15 text-down",
-                    )}
-                  >
-                    {o.side}
-                  </span>
-                  <span className="tabular flex-1">
-                    {Number(o.quantity)} {o.baseAsset} @ ${Number(o.limitPrice).toLocaleString("en-US")}
+                <li key={o.id} className="flex items-center gap-3 py-3.5 sm:gap-4">
+                  {sideBadge(o.side)}
+                  <span className="min-w-0 flex-1">
+                    <span className="tabular block font-semibold">
+                      {Number(o.quantity)} {o.baseAsset}
+                    </span>
+                    <span className="tabular block text-xs text-muted sm:text-sm">
+                      at ${Number(o.limitPrice).toLocaleString("en-US")}
+                    </span>
                   </span>
                   <form action={cancelLimitOrder}>
                     <input type="hidden" name="orderId" value={o.id} />
-                    <button type="submit" className="text-sm font-medium text-muted hover:text-down">
+                    <button
+                      type="submit"
+                      className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-muted transition-colors hover:border-down/40 hover:text-down"
+                    >
                       Cancel
                     </button>
                   </form>
@@ -140,46 +160,36 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
               ))}
             </ul>
           )}
-          <p className="mt-3 text-xs text-subtle">
-            Limit orders fill at your price against Trade In Orbit&apos;s liquidity once the market reaches it. Funds stay
-            reserved until then.
-          </p>
-        </section>
+        </Panel>
 
-        <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-          <h2 className="font-semibold">
-            Recent trades {demo && <span className="text-xs font-bold text-warn">DEMO</span>}
-          </h2>
+        <Panel title={<span className="flex items-center gap-2">Recent trades {demoTag}</span>}>
           {fills.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">No trades yet.</p>
+            <EmptyState icon={<Activity className="h-5 w-5" />} title="No trades yet." />
           ) : (
-            <ul className="mt-3 divide-y divide-line text-sm">
+            <ul className="divide-y divide-line text-sm">
               {fills.map((o) => (
-                <li key={o.id} className="flex items-center gap-3 py-3">
-                  <span
-                    className={cn(
-                      "rounded px-2 py-0.5 text-xs font-bold",
-                      o.side === "BUY" ? "bg-up/15 text-up" : "bg-down/15 text-down",
-                    )}
-                  >
-                    {o.side}
+                <li key={o.id} className="flex items-center gap-3 py-3.5 sm:gap-4">
+                  {sideBadge(o.side)}
+                  <span className="min-w-0 flex-1">
+                    <span className="tabular block font-semibold">
+                      {Number(o.quantity)} {o.baseAsset}
+                    </span>
+                    <span className="tabular block text-xs text-muted sm:text-sm">
+                      at ${Number(o.fillPrice).toLocaleString("en-US", { maximumFractionDigits: 4 })} ·{" "}
+                      {o.type === "LIMIT" ? "limit" : "market"}
+                    </span>
                   </span>
-                  <span className="tabular flex-1">
-                    {Number(o.quantity)} {o.baseAsset} @ $
-                    {Number(o.fillPrice).toLocaleString("en-US", { maximumFractionDigits: 4 })}
-                    <span className="ml-2 text-xs text-muted">{o.type === "LIMIT" ? "limit" : "market"}</span>
-                  </span>
-                  <span className="text-xs text-muted">
+                  <span className="shrink-0 text-right text-xs text-muted">
                     <LocalTime date={(o.filledAt ?? o.createdAt).toISOString()} />
                   </span>
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </Panel>
       </div>
 
       <Converter coins={coins.map((c) => c.code)} fees={fees} />
-    </div>
+    </PageStack>
   );
 }

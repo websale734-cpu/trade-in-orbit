@@ -7,6 +7,7 @@ import {
   BellRing,
   ChevronRight,
   Gift,
+  Globe,
   KeyRound,
   LifeBuoy,
   MessageCircle,
@@ -14,7 +15,10 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
+import { PageHeader, PageStack, Panel } from "@/components/app/ui";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { requireUser } from "@/server/auth/dal";
+import { getDictionary } from "@/i18n/server";
 
 export const metadata: Metadata = { title: "More" };
 
@@ -49,30 +53,46 @@ const GROUPS = [
 
 export default async function MorePage() {
   await requireUser("/more");
+  const dict = await getDictionary();
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">More</h1>
-      {GROUPS.map((g) => (
-        <section key={g.title}>
-          <h2 className="mb-2 px-1 text-xs font-semibold tracking-wider text-muted uppercase">{g.title}</h2>
-          <ul className="glass divide-y divide-line overflow-hidden rounded-[var(--radius-card)]">
-            {g.items.map((i) => (
-              <li key={i.href}>
-                <Link href={i.href} className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-strong">
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-strong">
-                    <i.icon className="h-[18px] w-[18px] text-accent" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium">{i.label}</span>
-                    <span className="block truncate text-xs text-muted">{i.hint}</span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 text-subtle" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+    <PageStack>
+      <PageHeader title="More" subtitle="Everything else in one place: money tools, settings and help." />
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {GROUPS.map((g) => (
+          <Panel key={g.title} title={g.title} bodyClassName="-mx-3">
+            <ul className="space-y-1">
+              {g.items.map((i) => (
+                <li key={i.href}>
+                  <Link
+                    href={i.href}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-surface-strong"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-strong">
+                      <i.icon className="h-[18px] w-[18px] text-accent" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{i.label}</span>
+                      <span className="block truncate text-xs text-muted sm:text-sm">{i.hint}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-subtle" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        ))}
+        <Panel title="Preferences">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="flex items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-strong">
+                <Globe className="h-[18px] w-[18px] text-accent" />
+              </span>
+              <span className="font-medium">{dict.common.language}</span>
+            </span>
+            <LanguageSwitcher />
+          </div>
+        </Panel>
+      </div>
+    </PageStack>
   );
 }

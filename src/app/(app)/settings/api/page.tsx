@@ -7,6 +7,7 @@ import { API_RATE, MAX_KEYS } from "@/server/api-keys";
 import { siteConfig } from "@/config/site";
 import { revokeKey } from "./actions";
 import { CreateKeyForm } from "./create-key-form";
+import { EmptyState, PageHeader, PageStack, Panel } from "@/components/app/ui";
 
 export const metadata: Metadata = { title: "API keys" };
 
@@ -20,102 +21,119 @@ const ENDPOINTS = [
 
 export default async function ApiKeysPage() {
   const { user } = await requireUser("/settings/api");
-  const keys = await db.apiKey.findMany({ where: { userId: user.id }, orderBy: [{ revokedAt: "asc" }, { createdAt: "desc" }], take: 20 });
+  const keys = await db.apiKey.findMany({
+    where: { userId: user.id },
+    orderBy: [{ revokedAt: "asc" }, { createdAt: "desc" }],
+    take: 20,
+  });
   const active = keys.filter((k) => !k.revokedAt);
 
+  const code =
+    "rounded-xl border border-line bg-surface-strong p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]";
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">API keys</h1>
-        <p className="mt-1 text-sm text-muted">
-          For advanced traders and tools. Treat keys like passwords: anyone with a trading key can place orders on your
-          account. Keys can never withdraw funds.
-        </p>
-      </div>
+    <PageStack>
+      <PageHeader
+        title="API keys"
+        subtitle="For advanced traders and tools. Treat keys like passwords: anyone with a trading key can place orders on your account. Keys can never withdraw funds."
+      />
 
-      <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-        <h2 className="flex items-center gap-2 font-semibold">
-          <KeyRound className="h-4 w-4 text-accent" /> Create a key
-        </h2>
-        {active.length >= MAX_KEYS ? (
-          <p className="mt-3 text-sm text-muted">You have {MAX_KEYS} active keys, the maximum. Revoke one to create another.</p>
-        ) : (
-          <CreateKeyForm />
-        )}
-      </section>
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="min-w-0 space-y-4 sm:space-y-6">
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-accent" /> Create a key
+              </span>
+            }
+          >
+            {active.length >= MAX_KEYS ? (
+              <p className="text-sm text-muted">
+                You have {MAX_KEYS} active keys, the maximum. Revoke one to create another.
+              </p>
+            ) : (
+              <CreateKeyForm />
+            )}
+          </Panel>
 
-      <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-        <h2 className="font-semibold">Your keys</h2>
-        {keys.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">No keys yet.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-line text-sm" data-testid="key-list">
-            {keys.map((k) => (
-              <li key={k.id} className="flex flex-wrap items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">
-                    {k.name}{" "}
-                    <span className="ml-1 rounded bg-surface-strong px-1.5 py-0.5 text-xs font-semibold text-muted">
-                      {k.permission === "TRADE" ? "Trade" : "Read only"}
-                    </span>
-                  </p>
-                  <p className="text-xs text-muted">
-                    <span className="font-mono">orb_{k.prefix}_…</span> · created <LocalTime date={k.createdAt.toISOString()} />
-                    {k.lastUsedAt && (
-                      <>
-                        {" "}
-                        · last used <LocalTime date={k.lastUsedAt.toISOString()} />
-                      </>
+          <Panel title="Your keys">
+            {keys.length === 0 ? (
+              <EmptyState icon={<KeyRound className="h-5 w-5" />} title="No keys yet." />
+            ) : (
+              <ul className="divide-y divide-line text-sm" data-testid="key-list">
+                {keys.map((k) => (
+                  <li key={k.id} className="flex flex-wrap items-center gap-3 py-3.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex flex-wrap items-center gap-2 font-semibold">
+                        <span className="min-w-0 break-words">{k.name}</span>
+                        <span className="rounded-full bg-surface-strong px-2.5 py-0.5 text-xs font-semibold text-muted">
+                          {k.permission === "TRADE" ? "Trade" : "Read only"}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted">
+                        <span className="font-mono">orb_{k.prefix}_…</span> · created{" "}
+                        <LocalTime date={k.createdAt.toISOString()} />
+                        {k.lastUsedAt && (
+                          <>
+                            {" "}
+                            · last used <LocalTime date={k.lastUsedAt.toISOString()} />
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    {k.revokedAt ? (
+                      <span className="rounded-full bg-surface-strong px-2.5 py-1 text-xs text-muted">Revoked</span>
+                    ) : (
+                      <form action={revokeKey}>
+                        <input type="hidden" name="id" value={k.id} />
+                        <button
+                          type="submit"
+                          className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium text-down transition-colors hover:border-down/40"
+                        >
+                          Revoke
+                        </button>
+                      </form>
                     )}
-                  </p>
-                </div>
-                {k.revokedAt ? (
-                  <span className="text-xs text-muted">Revoked</span>
-                ) : (
-                  <form action={revokeKey}>
-                    <input type="hidden" name="id" value={k.id} />
-                    <button type="submit" className="text-sm font-medium text-down hover:underline">
-                      Revoke
-                    </button>
-                  </form>
-                )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </div>
+
+        <Panel
+          title="Quick reference"
+          description={`Send your key as a bearer token. Limit: ${API_RATE.limit} requests per minute per key.`}
+          className="text-sm"
+        >
+          <pre className={code}>{`curl -H "Authorization: Bearer orb_xxx_yyy" ${siteConfig.url}/api/v1/account`}</pre>
+          <ul className="mt-5 divide-y divide-line border-y border-line">
+            {ENDPOINTS.map(([method, path, perm, desc]) => (
+              <li key={method + path} className="py-3">
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-surface-strong px-2 py-0.5 font-mono text-xs font-semibold">
+                    {method}
+                  </span>
+                  <span className="min-w-0 font-mono text-xs [overflow-wrap:anywhere]">{path}</span>
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  <span className="font-medium">{perm}</span> · {desc}
+                </p>
               </li>
             ))}
           </ul>
-        )}
-      </section>
-
-      <section className="glass rounded-[var(--radius-card)] p-5 text-sm sm:p-6">
-        <h2 className="font-semibold">Quick reference</h2>
-        <p className="mt-2 text-muted">
-          Send your key as a bearer token. Limit: {API_RATE.limit} requests per minute per key.
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded-xl bg-surface-strong p-3 text-xs">
-          {`curl -H "Authorization: Bearer orb_xxx_yyy" ${siteConfig.url}/api/v1/account`}
-        </pre>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-xs">
-            <tbody className="divide-y divide-line">
-              {ENDPOINTS.map(([method, path, perm, desc]) => (
-                <tr key={method + path}>
-                  <td className="py-2 pr-3 font-mono font-semibold">{method}</td>
-                  <td className="py-2 pr-3 font-mono">{path}</td>
-                  <td className="py-2 pr-3 text-muted">{perm}</td>
-                  <td className="py-2 text-muted">{desc}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <pre className="mt-4 overflow-x-auto rounded-xl bg-surface-strong p-3 text-xs">
-          {`POST /api/v1/orders
+          <pre className={`${code} mt-5`}>
+            {`POST /api/v1/orders
 { "type": "market", "side": "BUY", "base": "BTC", "amount": "50",
   "clientOrderId": "<uuid, makes retries safe>" }
 { "type": "limit", "side": "SELL", "base": "ETH", "quantity": "0.5",
   "limitPrice": "4200", "clientOrderId": "<uuid>" }`}
-        </pre>
-        <p className="mt-2 text-xs text-muted">Market BUY amount is USD to spend (fee included); market SELL amount is the coin quantity.</p>
-      </section>
-    </div>
+          </pre>
+          <p className="mt-3 text-xs leading-relaxed text-muted">
+            Market BUY amount is USD to spend (fee included); market SELL amount is the coin quantity.
+          </p>
+        </Panel>
+      </div>
+    </PageStack>
   );
 }

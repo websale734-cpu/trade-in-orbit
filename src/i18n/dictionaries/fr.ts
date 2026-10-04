@@ -387,6 +387,9 @@ const fr = {
       assets: "actifs",
       showBalance: "Afficher le solde",
       hideBalance: "Masquer le solde",
+      dayChange: "Variation sur 24 h",
+      cash: "Solde en espèces",
+      cashHint: "Disponible pour acheter des pièces",
       currency: "Afficher en",
       quick: { deposit: "Déposer", withdraw: "Retirer", buy: "Acheter", sell: "Vendre", swap: "Échanger" },
       watchlist: "Liste de suivi",
@@ -532,6 +535,11 @@ const fr = {
       subtitle:
         "Prix en direct. Ajoutez une étoile à une pièce pour l'ajouter à la liste de suivi de votre tableau de bord.",
       watch: "Suivre",
+      topGainer: "Plus forte hausse (24 h)",
+      topLoser: "Plus forte baisse (24 h)",
+      watching: "Dans votre liste de suivi",
+      coinsCount: "{n} pièces",
+      allCoins: "Toutes les pièces",
     },
     notifications: {
       title: "Notifications",

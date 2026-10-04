@@ -14,7 +14,11 @@ export const metadata: Metadata = { title: "Price alerts" };
 export default async function AlertsPage() {
   const { user } = await requireUser("/alerts");
   const [alerts, tradable] = await Promise.all([
-    db.priceAlert.findMany({ where: { userId: user.id, status: { not: "CANCELLED" } }, orderBy: [{ status: "asc" }, { createdAt: "desc" }], take: 50 }),
+    db.priceAlert.findMany({
+      where: { userId: user.id, status: { not: "CANCELLED" } },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      take: 50,
+    }),
     db.asset.findMany({ where: { enabled: true, tradingEnabled: true, NOT: { code: "USD" } }, select: { code: true } }),
   ]);
   const open = new Set(tradable.map((a) => a.code));
@@ -22,27 +26,32 @@ export default async function AlertsPage() {
   const active = alerts.filter((a) => a.status === "ACTIVE").length;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Price alerts</h1>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
           Get a notification when a coin crosses your price. Each alert fires once.
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-          <h2 className="flex items-center gap-2 font-semibold">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <section className="glass min-w-0 rounded-[var(--radius-card)] p-5 sm:p-6">
+          <h2 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
             <BellRing className="h-4 w-4 text-accent" /> New alert
           </h2>
           {active >= MAX_ACTIVE_ALERTS ? (
-            <p className="mt-3 text-sm text-muted">You have {MAX_ACTIVE_ALERTS} active alerts, the maximum. Cancel one to add another.</p>
+            <p className="mt-3 text-sm text-muted">
+              You have {MAX_ACTIVE_ALERTS} active alerts, the maximum. Cancel one to add another.
+            </p>
           ) : (
             <AlertForm coins={coins} />
           )}
         </section>
-        <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-          <h2 className="font-semibold">
-            Your alerts <span className="text-sm font-normal text-muted">({active}/{MAX_ACTIVE_ALERTS} active)</span>
+        <section className="glass min-w-0 rounded-[var(--radius-card)] p-5 sm:p-6">
+          <h2 className="text-base font-semibold sm:text-lg">
+            Your alerts{" "}
+            <span className="text-sm font-normal text-muted">
+              ({active}/{MAX_ACTIVE_ALERTS} active)
+            </span>
           </h2>
           {alerts.length === 0 ? (
             <p className="mt-3 text-sm text-muted">No alerts yet.</p>
@@ -58,7 +67,8 @@ export default async function AlertsPage() {
                     <p className="text-xs text-muted">
                       {a.status === "TRIGGERED" && a.triggeredAt ? (
                         <>
-                          Triggered at {formatUsd(Number(a.triggeredPrice))} · <LocalTime date={a.triggeredAt.toISOString()} />
+                          Triggered at {formatUsd(Number(a.triggeredPrice))} ·{" "}
+                          <LocalTime date={a.triggeredAt.toISOString()} />
                         </>
                       ) : (
                         <>
@@ -88,7 +98,9 @@ export default async function AlertsPage() {
               ))}
             </ul>
           )}
-          <p className="mt-3 text-xs text-subtle">Prices are checked about once a minute, so fast moves may overshoot your target.</p>
+          <p className="mt-3 text-xs text-subtle">
+            Prices are checked about once a minute, so fast moves may overshoot your target.
+          </p>
         </section>
       </div>
     </div>

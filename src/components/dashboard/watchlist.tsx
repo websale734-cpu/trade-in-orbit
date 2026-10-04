@@ -20,7 +20,7 @@ export function Watchlist({
   const rows = codes.map((c) => tickers.find((t) => t.symbol === c)).filter((t) => !!t);
 
   return (
-    <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6" aria-label={labels.title}>
+    <section className="glass h-full rounded-[var(--radius-card)] p-5 sm:p-6" aria-label={labels.title}>
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">{labels.title}</h2>
         <Link href="/markets" className="text-sm font-medium text-accent hover:underline">

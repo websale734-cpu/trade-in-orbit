@@ -52,7 +52,7 @@ export function WithdrawForm({
   const usable = addresses.filter((a) => a.assetCode === asset && a.confirmed);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+    <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.2fr_1fr]">
       <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6" aria-label="Withdrawal request">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Method">
           {(Object.keys(LABELS) as Method[]).map((m) => (
@@ -290,7 +290,7 @@ function AddressBook({ addresses, assets }: { addresses: Addr[]; assets: string[
               <span className="text-xs text-muted">{a.assetCode}</span>
               <span
                 className={cn(
-                  "ml-auto rounded px-1.5 py-0.5 text-[10px] font-bold",
+                  "ml-auto rounded px-1.5 py-0.5 text-xs font-bold",
                   a.confirmed ? "bg-up/15 text-up" : "bg-warn/15 text-warn",
                 )}
               >

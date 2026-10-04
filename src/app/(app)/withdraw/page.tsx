@@ -28,10 +28,14 @@ const STEP_LABEL: Record<string, string> = {
 export default async function WithdrawPage() {
   const { user } = await requireUser("/withdraw");
   const t = (await getDictionary()).app.accounts;
-  const intro = { title: t.actions.withdraw, intro: t.withdrawIntro, back: { href: "/accounts", label: t.allAccounts } };
+  const intro = {
+    title: t.actions.withdraw,
+    intro: t.withdrawIntro,
+    back: { href: "/accounts", label: t.allAccounts },
+  };
   if (user.kycStatus !== "APPROVED")
     return (
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 sm:space-y-8">
         <PageIntro {...intro} />
         <KycGate action="withdraw" status={user.kycStatus} />
       </div>
@@ -48,7 +52,7 @@ export default async function WithdrawPage() {
   const devTools = process.env.NODE_ENV !== "production";
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <PageIntro {...intro}>
         <p className="text-sm text-muted">
           24-hour limit remaining:{" "}
@@ -79,7 +83,7 @@ export default async function WithdrawPage() {
       />
 
       <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6">
-        <h2 className="font-semibold">Withdrawal status</h2>
+        <h2 className="text-base font-semibold sm:text-lg">Withdrawal status</h2>
         {withdrawals.length === 0 ? (
           <p className="mt-3 text-sm text-muted">No withdrawals yet.</p>
         ) : (
@@ -122,7 +126,7 @@ export default async function WithdrawPage() {
                         >
                           <span
                             className={cn(
-                              "grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold",
+                              "grid h-6 w-6 place-items-center rounded-full text-xs font-bold",
                               i < idx || w.status === "COMPLETED"
                                 ? "bg-brand text-white"
                                 : i === idx
@@ -132,12 +136,22 @@ export default async function WithdrawPage() {
                           >
                             {i < idx || w.status === "COMPLETED" ? <Check className="h-3.5 w-3.5" /> : i + 1}
                           </span>
-                          <span className={cn("text-[11px] leading-tight", i <= idx ? "text-fg" : "text-subtle")}>
+                          <span
+                            className={cn(
+                              "hidden text-xs leading-tight sm:block",
+                              i <= idx ? "text-fg" : "text-subtle",
+                            )}
+                          >
                             {STEP_LABEL[s]}
                           </span>
                         </li>
                       ))}
                     </ol>
+                  )}
+                  {!rejected && idx >= 0 && (
+                    <p className="mt-2 text-xs text-muted sm:hidden">
+                      Step {idx + 1} of {STEPS.length}: <span className="text-fg">{STEP_LABEL[w.status]}</span>
+                    </p>
                   )}
                   {w.txRef && <p className="mt-3 font-mono text-xs text-muted">Reference: {w.txRef}</p>}
                   {devTools && w.sandbox && !["COMPLETED", "REJECTED"].includes(w.status) && (

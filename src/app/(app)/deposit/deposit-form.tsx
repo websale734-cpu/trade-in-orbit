@@ -40,7 +40,7 @@ export function DepositForm({
   const fee = Math.ceil(n * method.feeBps) / 10_000;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
+    <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_1.1fr]">
       <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6" aria-label="Deposit method">
         <h2 className="font-semibold">How would you like to deposit?</h2>
         <div className="mt-4 grid gap-2" role="radiogroup">

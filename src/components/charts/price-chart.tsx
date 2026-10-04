@@ -205,12 +205,7 @@ export function PriceChart({
             {geo.yTicks.map((v) => (
               <g key={v}>
                 <line x1={0} x2={plotW} y1={geo.y(v)} y2={geo.y(v)} stroke="var(--chart-grid)" strokeWidth={1} />
-                <text
-                  x={width - 4}
-                  y={geo.y(v) + 4}
-                  textAnchor="end"
-                  className="tabular fill-[var(--subtle)] text-[11px]"
-                >
+                <text x={width - 4} y={geo.y(v) + 4} textAnchor="end" className="tabular fill-[var(--subtle)] text-xs">
                   {formatAxis(v)}
                 </text>
               </g>
@@ -221,7 +216,7 @@ export function PriceChart({
                 x={geo.x(i)}
                 y={PLOT_H + 17}
                 textAnchor="middle"
-                className="tabular fill-[var(--subtle)] text-[11px]"
+                className="tabular fill-[var(--subtle)] text-xs"
               >
                 {formatTick(series[i][0], shownTf)}
               </text>

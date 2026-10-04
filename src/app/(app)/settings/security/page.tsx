@@ -33,8 +33,8 @@ export default async function SecurityPage({ searchParams }: PageProps<"/setting
   const setup = settingUp ? await beginTotpSetup(user.id, user.email, user.totpPendingSecretEnc) : null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-3xl font-semibold tracking-tight">{s.title}</h1>
+    <div className="mx-auto w-full max-w-4xl min-w-0 space-y-6 sm:space-y-8">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{s.title}</h1>
 
       {/* Two-factor authentication */}
       <section className="glass rounded-[var(--radius-card)] p-6">
@@ -52,7 +52,7 @@ export default async function SecurityPage({ searchParams }: PageProps<"/setting
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="font-semibold">{s.twoFactor}</h2>
+            <h2 className="text-base font-semibold sm:text-lg">{s.twoFactor}</h2>
             <p className="mt-1 text-sm text-muted">{user.totpEnabledAt ? s.twoFactorOn : s.twoFactorOff}</p>
           </div>
           {!user.totpEnabledAt && !settingUp && (
@@ -81,7 +81,7 @@ export default async function SecurityPage({ searchParams }: PageProps<"/setting
 
       {/* Password */}
       <section className="glass rounded-[var(--radius-card)] p-6">
-        <h2 className="flex items-center gap-2 font-semibold">
+        <h2 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
           <KeyRound className="h-4 w-4 text-accent" /> Change password
         </h2>
         <ChangePasswordForm needsCode={!!user.totpEnabledAt} />
@@ -90,7 +90,7 @@ export default async function SecurityPage({ searchParams }: PageProps<"/setting
       {/* Active sessions */}
       <section className="glass rounded-[var(--radius-card)] p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">{s.sessions}</h2>
+          <h2 className="text-base font-semibold sm:text-lg">{s.sessions}</h2>
           <div className="flex gap-2">
             {sessions.length > 1 && (
               <form action={logoutOtherDevices}>
@@ -147,7 +147,7 @@ export default async function SecurityPage({ searchParams }: PageProps<"/setting
 
       {/* Security log */}
       <section className="glass rounded-[var(--radius-card)] p-6">
-        <h2 className="font-semibold">{s.log}</h2>
+        <h2 className="text-base font-semibold sm:text-lg">{s.log}</h2>
         {events.length === 0 ? (
           <p className="mt-4 text-sm text-muted">{s.logEmpty}</p>
         ) : (

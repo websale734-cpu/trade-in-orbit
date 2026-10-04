@@ -381,6 +381,9 @@ const de = {
       assets: "Werte",
       showBalance: "Saldo anzeigen",
       hideBalance: "Saldo verbergen",
+      dayChange: "24-Std.-Änderung",
+      cash: "Bargeldguthaben",
+      cashHint: "Verfügbar zum Kauf von Münzen",
       currency: "Anzeigen in",
       quick: { deposit: "Einzahlen", withdraw: "Auszahlen", buy: "Kaufen", sell: "Verkaufen", swap: "Tauschen" },
       watchlist: "Beobachtungsliste",
@@ -524,6 +527,11 @@ const de = {
       subtitle:
         "Live-Kurse. Markiere eine Münze mit einem Stern, um sie der Beobachtungsliste deines Dashboards hinzuzufügen.",
       watch: "Beobachten",
+      topGainer: "Top-Gewinner (24 Std)",
+      topLoser: "Top-Verlierer (24 Std)",
+      watching: "Auf deiner Beobachtungsliste",
+      coinsCount: "{n} Münzen",
+      allCoins: "Alle Münzen",
     },
     notifications: {
       title: "Benachrichtigungen",

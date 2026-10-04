@@ -18,9 +18,9 @@ export default async function TransferPage({ searchParams }: PageProps<"/transfe
   const t = dict.app.transferPage;
 
   return (
-    <div className="mx-auto max-w-xl space-y-8">
+    <div className="mx-auto w-full max-w-2xl min-w-0 space-y-6 sm:space-y-8">
       <PageIntro title={t.title} intro={t.intro} back={{ href: "/accounts", label: dict.app.accounts.allAccounts }} />
-      <section className="glass rounded-[var(--radius-card)] p-6">
+      <section className="glass min-w-0 rounded-[var(--radius-card)] p-5 sm:p-8">
         {accounts.length < 2 ? (
           <div className="text-center">
             <p className="text-sm text-muted">{t.needTwo}</p>

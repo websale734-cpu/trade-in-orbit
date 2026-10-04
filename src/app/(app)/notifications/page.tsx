@@ -20,7 +20,7 @@ export default async function NotificationsPage() {
   const unread = items.filter((i) => !i.readAt).length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl min-w-0 space-y-6 sm:space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
         {unread > 0 && (
