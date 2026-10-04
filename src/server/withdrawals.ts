@@ -23,10 +23,10 @@ import {
  *
  * Requesting a withdrawal immediately moves amount + fee from the user's
  * account into WITHDRAWAL_HOLD, so the funds can't be spent twice while it's
- * reviewed. From there it either completes (hold -> external + fees) or is
- * rejected (hold -> back to the user). Status:
- *   REQUESTED -> UNDER_REVIEW -> APPROVED -> SENT -> COMPLETED
- *                          \-> REJECTED (with reason, funds returned)
+ * reviewed. An admin then approves it (hold -> external + fees, COMPLETED) or
+ * rejects it (hold -> back to the user, REJECTED). Status:
+ *   REQUESTED (scheduled) -> UNDER_REVIEW -> COMPLETED  (approved)
+ *                                        \-> REJECTED   (funds returned)
  * A second factor is required: an authenticator code if 2FA is on, otherwise an
  * emailed code. Crypto withdrawals must go to a saved, email-confirmed address.
  */
@@ -182,74 +182,78 @@ export async function requestWithdrawal(input: {
   }
 }
 
-const NEXT: Partial<Record<WithdrawalStatus, WithdrawalStatus>> = {
-  REQUESTED: "UNDER_REVIEW",
-  UNDER_REVIEW: "APPROVED",
-  APPROVED: "SENT",
-  SENT: "COMPLETED",
-};
+/**
+ * Every status short of a final decision. The customer sees all of these as
+ * "Pending"; COMPLETED shows as "Success" and REJECTED as "Failed".
+ * (APPROVED/SENT are only reachable by withdrawals made before single-step approval.)
+ */
+export const PENDING_WITHDRAWAL_STATUSES: WithdrawalStatus[] = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "SENT"];
+
+export function withdrawalOutcome(status: WithdrawalStatus): "PENDING" | "SUCCESS" | "FAILED" {
+  return status === "COMPLETED" ? "SUCCESS" : status === "REJECTED" ? "FAILED" : "PENDING";
+}
 
 /**
- * Move a withdrawal one step forward (admin panel in Phase 5; sandbox tools in
- * development). Completion posts hold -> external clearing + fees.
+ * Approve a pending withdrawal. The amount stays deducted: the held funds
+ * move hold -> external clearing (+ fee to FEES) and the withdrawal completes.
+ * Returns null if it was no longer pending.
  */
-export async function advanceWithdrawal(id: string, txRef?: string): Promise<Withdrawal | null> {
+export async function approveWithdrawal(id: string): Promise<Withdrawal | null> {
   const w = await db.withdrawal.findUnique({ where: { id } });
-  if (!w || !NEXT[w.status]) return null;
-  const next = NEXT[w.status]!;
-  const stamp = { UNDER_REVIEW: "reviewAt", APPROVED: "approvedAt", SENT: "sentAt", COMPLETED: "completedAt" }[
-    next as string
-  ]!;
+  if (!w || !PENDING_WITHDRAWAL_STATUSES.includes(w.status)) return null;
 
   const updated = await db.$transaction(async (tx) => {
+    const now = new Date();
     const claimed = await tx.withdrawal.updateMany({
       where: { id, status: w.status },
-      data: { status: next, [stamp]: new Date(), ...(txRef ? { txRef } : {}) },
+      data: { status: "COMPLETED", approvedAt: w.approvedAt ?? now, completedAt: now },
     });
     if (claimed.count !== 1) return null;
-    if (next === "COMPLETED") {
-      const hold = await systemLedgerAccount(tx, "WITHDRAWAL_HOLD", w.assetCode);
-      const external = await systemLedgerAccount(
-        tx,
-        w.sandbox ? "SANDBOX_EXTERNAL" : "EXTERNAL_CLEARING",
-        w.assetCode,
-        true,
-      );
-      const fees = await systemLedgerAccount(tx, "FEES", w.assetCode);
-      await postEntry(tx, {
-        type: "WITHDRAWAL",
-        description: `Withdrawal completed: ${w.amount} ${w.assetCode}${w.sandbox ? " (sandbox)" : ""}`,
-        userId: w.userId,
-        idempotencyKey: `withdrawal-complete:${w.id}`,
-        metadata: { withdrawalId: w.id, sandbox: w.sandbox },
-        postings: [
-          { ledgerAccountId: hold.id, assetCode: w.assetCode, amount: w.amount.plus(w.fee).negated() },
-          { ledgerAccountId: external.id, assetCode: w.assetCode, amount: w.amount },
-          { ledgerAccountId: fees.id, assetCode: w.assetCode, amount: w.fee },
-        ],
-      });
-    }
+    const hold = await systemLedgerAccount(tx, "WITHDRAWAL_HOLD", w.assetCode);
+    const external = await systemLedgerAccount(
+      tx,
+      w.sandbox ? "SANDBOX_EXTERNAL" : "EXTERNAL_CLEARING",
+      w.assetCode,
+      true,
+    );
+    const fees = await systemLedgerAccount(tx, "FEES", w.assetCode);
+    await postEntry(tx, {
+      type: "WITHDRAWAL",
+      description: `Withdrawal completed: ${w.amount} ${w.assetCode}${w.sandbox ? " (sandbox)" : ""}`,
+      userId: w.userId,
+      idempotencyKey: `withdrawal-complete:${w.id}`,
+      metadata: { withdrawalId: w.id, sandbox: w.sandbox },
+      postings: [
+        { ledgerAccountId: hold.id, assetCode: w.assetCode, amount: w.amount.plus(w.fee).negated() },
+        { ledgerAccountId: external.id, assetCode: w.assetCode, amount: w.amount },
+        { ledgerAccountId: fees.id, assetCode: w.assetCode, amount: w.fee },
+      ],
+    });
     return tx.withdrawal.findUnique({ where: { id } });
   }, TX);
-  if (updated && (next === "SENT" || next === "COMPLETED")) {
+  if (updated) {
     await notify(w.userId, {
       type: "ACCOUNT",
-      title: next === "SENT" ? "Withdrawal sent" : "Withdrawal completed",
-      body: `${w.amount} ${w.assetCode} ${next === "SENT" ? "is on its way" : "has arrived"}.`,
+      title: "Withdrawal successful",
+      body: `Your ${w.amount} ${w.assetCode} withdrawal was approved.`,
       link: "/withdraw",
     }).catch(() => {});
   }
   return updated;
 }
 
-/** Reject and return the held funds (amount + fee) to the user. */
-export async function rejectWithdrawal(id: string, reason: string) {
+/**
+ * Reject and return the held funds (amount + fee) to the user, exactly as
+ * they were. Returns null if it was no longer pending. A legacy SENT
+ * withdrawal has already left the platform, so it can't be rejected.
+ */
+export async function rejectWithdrawal(id: string, reason?: string): Promise<Withdrawal | null> {
   const w = await db.withdrawal.findUnique({ where: { id } });
-  if (!w || ["COMPLETED", "REJECTED", "SENT"].includes(w.status)) return null;
+  if (!w || !PENDING_WITHDRAWAL_STATUSES.includes(w.status) || w.status === "SENT") return null;
   await db.$transaction(async (tx) => {
     const claimed = await tx.withdrawal.updateMany({
       where: { id, status: w.status },
-      data: { status: "REJECTED", rejectedAt: new Date(), rejectionReason: reason },
+      data: { status: "REJECTED", rejectedAt: new Date(), rejectionReason: reason || null },
     });
     if (claimed.count !== 1) throw new LedgerError("Withdrawal changed; try again.", "INVALID");
     const hold = await systemLedgerAccount(tx, "WITHDRAWAL_HOLD", w.assetCode);
@@ -270,10 +274,11 @@ export async function rejectWithdrawal(id: string, reason: string) {
   }, TX);
   await notify(w.userId, {
     type: "ACCOUNT",
-    title: "Withdrawal rejected",
-    body: `Your ${w.amount} ${w.assetCode} withdrawal was rejected: ${reason}. The funds are back in your account.`,
+    title: "Withdrawal failed",
+    body: `Your ${w.amount} ${w.assetCode} withdrawal was rejected${reason ? `: ${reason}` : ""}. The funds are back in your account.`,
     link: "/withdraw",
   }).catch(() => {});
+  return w;
 }
 
 /** Move scheduled withdrawals whose date has arrived into the review queue. */

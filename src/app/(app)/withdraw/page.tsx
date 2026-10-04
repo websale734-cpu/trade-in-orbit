@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Check, X } from "lucide-react";
+import { Check, Clock, X } from "lucide-react";
 import { PageIntro } from "@/components/accounts/page-parts";
 import { KycGate, SandboxBadge } from "@/components/app/kyc-gate";
 import { getDictionary } from "@/i18n/server";
@@ -10,20 +10,18 @@ import { ensureDefaultAccount, listAccounts } from "@/server/ledger";
 import { limitsFor } from "@/server/funding";
 import { WITHDRAWAL_ARRIVAL } from "@/config/funding";
 import { getSettings } from "@/server/settings";
+import { withdrawalOutcome } from "@/server/withdrawals";
 import { cn } from "@/lib/utils";
 import { sandboxAdvanceWithdrawal, sandboxRejectWithdrawal } from "../sandbox-actions";
 import { WithdrawForm } from "./withdraw-form";
 
 export const metadata: Metadata = { title: "Withdraw" };
 
-const STEPS = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "SENT", "COMPLETED"] as const;
-const STEP_LABEL: Record<string, string> = {
-  REQUESTED: "Requested",
-  UNDER_REVIEW: "Under review",
-  APPROVED: "Approved",
-  SENT: "Sent",
-  COMPLETED: "Completed",
-};
+const OUTCOME = {
+  PENDING: { label: "Pending", className: "bg-warn/15 text-warn" },
+  SUCCESS: { label: "Success", className: "bg-up/15 text-up" },
+  FAILED: { label: "Failed", className: "bg-down/15 text-down" },
+} as const;
 
 export default async function WithdrawPage() {
   const { user } = await requireUser("/withdraw");
@@ -90,11 +88,13 @@ export default async function WithdrawPage() {
           <ul className="mt-3 space-y-4">
             {withdrawals.map((w) => {
               const dest = w.destination as { masked?: string };
-              const idx = STEPS.indexOf(w.status as (typeof STEPS)[number]);
-              const rejected = w.status === "REJECTED";
+              const outcome = withdrawalOutcome(w.status);
               return (
                 <li key={w.id} className="rounded-2xl border border-line p-4 text-sm">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className={cn("rounded px-2 py-0.5 text-xs font-bold", OUTCOME[outcome].className)}>
+                      {OUTCOME[outcome].label}
+                    </span>
                     <span className="tabular font-semibold">
                       {Number(w.amount).toLocaleString("en-US", { maximumFractionDigits: 8 })} {w.assetCode}
                     </span>
@@ -111,50 +111,24 @@ export default async function WithdrawPage() {
                       Scheduled for <LocalTime date={w.scheduledFor.toISOString()} />
                     </p>
                   )}
-                  {/* Status tracker */}
-                  {rejected ? (
-                    <p className="mt-3 flex items-center gap-2 text-down">
-                      <X className="h-4 w-4" /> Rejected: {w.rejectionReason}. The funds were returned to your account.
+                  {outcome === "PENDING" && (
+                    <p className="mt-3 flex items-center gap-2 text-muted">
+                      <Clock className="h-4 w-4 shrink-0" /> Awaiting approval. The amount is held from your balance.
                     </p>
-                  ) : (
-                    <ol className="mt-4 grid grid-cols-5 gap-1" aria-label="Withdrawal progress">
-                      {STEPS.map((s, i) => (
-                        <li
-                          key={s}
-                          className="flex flex-col items-center gap-1.5 text-center"
-                          aria-current={i === idx ? "step" : undefined}
-                        >
-                          <span
-                            className={cn(
-                              "grid h-6 w-6 place-items-center rounded-full text-xs font-bold",
-                              i < idx || w.status === "COMPLETED"
-                                ? "bg-brand text-white"
-                                : i === idx
-                                  ? "border-2 border-accent text-accent"
-                                  : "border border-line-strong text-subtle",
-                            )}
-                          >
-                            {i < idx || w.status === "COMPLETED" ? <Check className="h-3.5 w-3.5" /> : i + 1}
-                          </span>
-                          <span
-                            className={cn(
-                              "hidden text-xs leading-tight sm:block",
-                              i <= idx ? "text-fg" : "text-subtle",
-                            )}
-                          >
-                            {STEP_LABEL[s]}
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
                   )}
-                  {!rejected && idx >= 0 && (
-                    <p className="mt-2 text-xs text-muted sm:hidden">
-                      Step {idx + 1} of {STEPS.length}: <span className="text-fg">{STEP_LABEL[w.status]}</span>
+                  {outcome === "SUCCESS" && (
+                    <p className="mt-3 flex items-center gap-2 text-up">
+                      <Check className="h-4 w-4 shrink-0" /> Approved. Your withdrawal was successful.
+                    </p>
+                  )}
+                  {outcome === "FAILED" && (
+                    <p className="mt-3 flex items-center gap-2 text-down">
+                      <X className="h-4 w-4 shrink-0" /> Rejected{w.rejectionReason ? `: ${w.rejectionReason}` : ""}. The
+                      funds were returned to your balance.
                     </p>
                   )}
                   {w.txRef && <p className="mt-3 font-mono text-xs text-muted">Reference: {w.txRef}</p>}
-                  {devTools && w.sandbox && !["COMPLETED", "REJECTED"].includes(w.status) && (
+                  {devTools && w.sandbox && outcome === "PENDING" && (
                     <div className="mt-3 flex gap-2 border-t border-line pt-3">
                       <form action={sandboxAdvanceWithdrawal}>
                         <input type="hidden" name="id" value={w.id} />
@@ -162,7 +136,7 @@ export default async function WithdrawPage() {
                           type="submit"
                           className="rounded-full border border-up/40 px-3 py-1 text-xs font-medium text-up hover:bg-up/10"
                         >
-                          Simulate next step
+                          Simulate approval
                         </button>
                       </form>
                       {w.status !== "SENT" && (

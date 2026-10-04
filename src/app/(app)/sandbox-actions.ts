@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/server/db";
 import { requireUser } from "@/server/auth/dal";
 import { completeDeposit, failDeposit, getDepositAddress } from "@/server/funding";
-import { advanceWithdrawal, rejectWithdrawal } from "@/server/withdrawals";
+import { approveWithdrawal, rejectWithdrawal } from "@/server/withdrawals";
 import { Decimal } from "@/server/ledger";
 
 /**
@@ -65,7 +65,7 @@ export async function sandboxAdvanceWithdrawal(fd: FormData) {
   assertSandbox();
   const { user } = await requireUser();
   const w = await db.withdrawal.findFirst({ where: { id: String(fd.get("id")), userId: user.id, sandbox: true } });
-  if (w) await advanceWithdrawal(w.id, w.status === "APPROVED" ? `sandbox-tx-${w.id.slice(-8)}` : undefined);
+  if (w) await approveWithdrawal(w.id);
   revalidatePath("/withdraw");
 }
 

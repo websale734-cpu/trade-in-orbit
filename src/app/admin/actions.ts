@@ -8,7 +8,7 @@ import { reviewKyc } from "@/server/admin/kyc";
 import { adjustBalance, correctAdjustment, LedgerError } from "@/server/ledger";
 import { revokeAllSessions } from "@/server/auth/session";
 import { completeDeposit, failDeposit } from "@/server/funding";
-import { advanceWithdrawal, rejectWithdrawal } from "@/server/withdrawals";
+import { approveWithdrawal, rejectWithdrawal } from "@/server/withdrawals";
 import { saveSetting, settingsSchemas, type SettingsKey } from "@/server/settings";
 import { notify } from "@/server/notify/notifications";
 import type { FormState } from "@/components/ui/form";
@@ -213,27 +213,45 @@ export async function decideDeposit(_p: FormState | undefined, fd: FormData): Pr
   }
 }
 
+/** Approve or reject a pending withdrawal; every decision goes to the private audit log. */
 export async function decideWithdrawal(_p: FormState | undefined, fd: FormData): Promise<FormState> {
   try {
     const admin = await assertPermission("payments.review");
     const id = String(fd.get("withdrawalId"));
-    if (fd.get("decision") === "reject") {
-      const r = reason.safeParse(fd.get("reason"));
-      if (!r.success) return { error: r.error.issues[0].message };
-      await rejectWithdrawal(id, r.data);
-      await audit(admin, "withdrawal.reject", { type: "withdrawal", id }, { reason: r.data });
-    } else {
-      const w = await db.withdrawal.findUnique({ where: { id } });
-      if (w?.userId === admin.id) return { error: "You can't approve your own withdrawal." };
-      const txRef = String(fd.get("txRef") || "").trim() || undefined;
-      if (w?.status === "APPROVED" && !txRef)
-        return { error: "Enter the payout / transaction reference to mark it sent." };
-      const next = await advanceWithdrawal(id, txRef);
-      if (!next) return { error: "This withdrawal can't be advanced." };
-      await audit(admin, `withdrawal.${next.status.toLowerCase()}`, { type: "withdrawal", id }, { txRef });
+    const approve = fd.get("decision") === "approve";
+    let why: string | undefined;
+    if (!approve) {
+      const raw = String(fd.get("reason") ?? "").trim();
+      if (raw.length > 500) return { error: "Keep the reason under 500 characters." };
+      why = raw || undefined;
     }
+    const pending = await db.withdrawal.findUnique({ where: { id }, select: { userId: true } });
+    if (pending?.userId === admin.id) return { error: "You can't decide on your own withdrawal." };
+
+    const w = approve ? await approveWithdrawal(id) : await rejectWithdrawal(id, why);
+    if (!w) return { error: "This withdrawal is no longer pending." };
+    await audit(
+      admin,
+      approve ? "withdrawal.approve" : "withdrawal.reject",
+      { type: "withdrawal", id },
+      {
+        adminName: admin.name,
+        decision: approve ? "APPROVED" : "REJECTED",
+        userId: w.userId,
+        amount: w.amount.toString(),
+        fee: w.fee.toString(),
+        assetCode: w.assetCode,
+        decidedAt: new Date().toISOString(),
+        ...(why ? { reason: why } : {}),
+      },
+    );
     revalidatePath("/admin/withdrawals");
-    return { message: "Withdrawal updated." };
+    revalidatePath(`/admin/users/${w.userId}`);
+    return {
+      message: approve
+        ? "Approved. The customer now sees this withdrawal as successful."
+        : "Rejected. The held funds are back in the customer's balance.",
+    };
   } catch (err) {
     return failure(err);
   }
