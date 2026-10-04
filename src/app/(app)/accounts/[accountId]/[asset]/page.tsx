@@ -30,7 +30,8 @@ export default async function CoinPage({ params }: PageProps<"/accounts/[account
     db.ledgerAccount.findFirst({ where: { accountId, assetCode: code, account: { userId: user.id } } }),
     getMarketSnapshot(),
   ]);
-  if (!account || !asset) notFound();
+  // Crypto only: the legacy USD cash asset has no page.
+  if (!account || !asset || asset.type !== "CRYPTO") notFound();
   const t = dict.app.accounts;
 
   const postings = ledger
@@ -68,11 +69,7 @@ export default async function CoinPage({ params }: PageProps<"/accounts/[account
           </p>
         </section>
         <section className="glass min-w-0 rounded-[var(--radius-card)] p-6">
-          {code === "USD" ? (
-            <p className="text-sm leading-relaxed text-muted">{t.coin.cashNote}</p>
-          ) : (
-            <CoinPriceTile code={code} />
-          )}
+          <CoinPriceTile code={code} />
         </section>
         <div className="min-w-0 sm:col-span-2 xl:col-span-1">
           <MoneyActions labels={t.actions} context={{ account: account.id, asset: code }} compact />

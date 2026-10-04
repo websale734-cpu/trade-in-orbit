@@ -508,6 +508,10 @@ model Deposit {
   reference     String        @unique
   /// Payment provider's ID (Stripe session, mobile money transaction, tx hash).
   providerRef   String?       @unique @map("provider_ref")
+  /// Crypto network the customer sent on, e.g. "Tron (TRC20)".
+  network       String?
+  /// The platform wallet address shown to the customer when they deposited.
+  walletAddress String?       @map("wallet_address")
   /// Test-mode deposit created without a real provider (never in production).
   sandbox       Boolean       @default(false)
   failureReason String?       @map("failure_reason")

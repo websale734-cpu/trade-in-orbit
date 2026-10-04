@@ -9,9 +9,11 @@ import type { FormState } from "@/components/ui/form";
 
 const num = z.string().trim().regex(/^\d+(\.\d+)?$/, "Enter a valid number.");
 
-/** Only coins that are enabled and tradable can be alerted on or bought. */
-async function tradableAsset(code: string) {
-  return db.asset.findFirst({ where: { code, enabled: true, tradingEnabled: true, NOT: { code: "USD" } } });
+/** Only coins that are enabled and tradable can be alerted on or bought (recurring buys are paid in USDT, so not USDT itself). */
+async function tradableAsset(code: string, forPurchase = false) {
+  return db.asset.findFirst({
+    where: { code, enabled: true, tradingEnabled: true, type: "CRYPTO", ...(forPurchase ? { NOT: { code: "USDT" } } : {}) },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -78,8 +80,8 @@ export async function createRecurring(_prev: FormState | undefined, fd: FormData
   if (!parsed.success) return { fieldErrors: { amountUsd: parsed.error.issues[0].message }, values };
   const amount = Number(parsed.data.amountUsd);
   if (amount < MIN_RECURRING_USD || amount > 100_000)
-    return { fieldErrors: { amountUsd: `Enter between $${MIN_RECURRING_USD} and $100,000.` }, values };
-  if (!(await tradableAsset(parsed.data.assetCode))) return { error: "That coin isn't available.", values };
+    return { fieldErrors: { amountUsd: `Enter between ${MIN_RECURRING_USD} and 100,000 USDT.` }, values };
+  if (!(await tradableAsset(parsed.data.assetCode, true))) return { error: "That coin isn't available.", values };
 
   const account = await db.account.findFirst({
     where: { id: parsed.data.accountId, userId: user.id, archivedAt: null, type: { not: "DEMO" } },
@@ -103,7 +105,7 @@ export async function createRecurring(_prev: FormState | undefined, fd: FormData
   });
   revalidatePath("/recurring");
   return {
-    message: `Recurring buy set: $${parsed.data.amountUsd} of ${parsed.data.assetCode} ${parsed.data.frequency.toLowerCase()}. The first purchase happens within a minute.`,
+    message: `Recurring buy set: ${parsed.data.amountUsd} USDT of ${parsed.data.assetCode} ${parsed.data.frequency.toLowerCase()}. The first purchase happens within a minute.`,
   };
 }
 

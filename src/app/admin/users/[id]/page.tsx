@@ -93,7 +93,10 @@ export default async function AdminUser({ params, searchParams }: PageProps<"/ad
   const canAdjust = can(admin, "ledger.adjust");
 
   const [assets, snapshot, entries, entryCount, adjustmentIds, transfers] = await Promise.all([
-    db.asset.findMany({ orderBy: { sortOrder: "asc" }, select: { code: true, name: true, decimals: true } }),
+    db.asset.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { code: true, name: true, decimals: true, type: true },
+    }),
     getMarketSnapshot().catch(() => null),
     db.journalEntry.findMany({
       where: { userId: u.id },
@@ -351,11 +354,13 @@ export default async function AdminUser({ params, searchParams }: PageProps<"/ad
                 <label className="grid gap-1 text-xs text-muted">
                   Coin
                   <select name="assetCode" className={adminInput}>
-                    {assets.map((a) => (
-                      <option key={a.code} value={a.code}>
-                        {a.code}
-                      </option>
-                    ))}
+                    {assets
+                      .filter((a) => a.type === "CRYPTO")
+                      .map((a) => (
+                        <option key={a.code} value={a.code}>
+                          {a.code}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs text-muted">

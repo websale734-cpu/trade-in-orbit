@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "../db";
-import { notify } from "../notify/notifications";
+import { notifyDecision } from "../notify/decisions";
 
 /** Approve or reject a KYC submission and update the user's verification level. */
 export async function reviewKyc(
@@ -28,14 +28,10 @@ export async function reviewKyc(
       data: decision === "APPROVED" ? { kycStatus: "APPROVED", kycLevel: 1 } : { kycStatus: "REJECTED", kycLevel: 0 },
     }),
   ]);
-  await notify(sub.userId, {
-    type: "KYC",
-    title: decision === "APPROVED" ? "Identity verified" : "Verification unsuccessful",
-    body:
-      decision === "APPROVED"
-        ? "You're verified. Deposits and withdrawals are now unlocked."
-        : `We couldn't verify your identity: ${reason}. Please submit new documents.`,
-    link: decision === "APPROVED" ? "/deposit" : "/onboarding/kyc",
-  }).catch(() => {});
+  // In-app notification and email, same wording.
+  await notifyDecision(
+    sub.userId,
+    decision === "APPROVED" ? { kind: "KYC_APPROVED" } : { kind: "KYC_REJECTED", reason },
+  );
   return sub;
 }

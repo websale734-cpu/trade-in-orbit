@@ -387,8 +387,6 @@ const es = {
       showBalance: "Mostrar saldo",
       hideBalance: "Ocultar saldo",
       dayChange: "Cambio en 24 h",
-      cash: "Saldo en efectivo",
-      cashHint: "Disponible para comprar monedas",
       currency: "Mostrar en",
       quick: { deposit: "Depositar", withdraw: "Retirar", buy: "Comprar", sell: "Vender", swap: "Intercambiar" },
       watchlist: "Lista de seguimiento",
@@ -483,15 +481,14 @@ const es = {
         price: "Precio hoy",
         change24h: "{pct} en las últimas 24 horas",
         last7Days: "Últimos 7 días",
-        cashNote:
-          "El dólar estadounidense es tu saldo en efectivo. Puedes convertirlo en monedas en cualquier momento.",
         activity: "Actividad reciente",
         activityEmpty: "Aún no hay actividad para esta moneda en esta cuenta.",
       },
       openTitle: "Abrir otra cuenta",
       openIntro: "Las cuentas separadas ayudan a organizar el dinero, por ejemplo una para trading y otra para ahorro.",
-      depositIntro: "Trae dinero o monedas a Trade In Orbit. Tu saldo se actualiza cuando se confirma el pago.",
-      withdrawIntro: "Envía monedas a una dirección de cartera fuera de Trade In Orbit, o dinero a tu banco.",
+      depositIntro:
+        "Deposita criptomonedas en tu cartera de Trade In Orbit. Se añade a tu saldo cuando un administrador confirma que ha llegado.",
+      withdrawIntro: "Envía monedas a una dirección de cartera cripto fuera de Trade In Orbit.",
     },
     convert: {
       title: "Convertir",

@@ -61,7 +61,7 @@ export function ConvertForm({
   const byCode = new Map(assets.map((a) => [a.code, a]));
   const holdingsOf = (acct: Acct) => assets.filter((a) => Number(acct.balances[a.code] ?? 0) > 0);
   const pickTo = (fromCode: string, wanted?: string) =>
-    [wanted, "BTC", "USDT", "USD"].find((c) => c && c !== fromCode && byCode.has(c)) ??
+    [wanted, "BTC", "USDT"].find((c) => c && c !== fromCode && byCode.has(c)) ??
     assets.find((a) => a.code !== fromCode)!.code;
 
   const startAcct = accounts.find((a) => a.id === initial.accountId) ?? accounts[0];

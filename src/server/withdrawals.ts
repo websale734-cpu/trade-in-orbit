@@ -1,87 +1,55 @@
 import "server-only";
 import { db } from "./db";
-import { encryptString } from "./crypto";
 import { Decimal, LedgerError, mapLedgerError, postEntry, systemLedgerAccount } from "./ledger";
 import { checkCode } from "./auth/codes";
 import { totpWouldAccept, verifyAndConsumeTotp } from "./auth/totp";
 import { notify } from "./notify/notifications";
-import { methodMode } from "./funding";
-import { FIAT_METHODS } from "@/config/funding";
+import { notifyDecision } from "./notify/decisions";
+import { cryptoMode } from "./funding";
+import { coinNetworks } from "@/config/funding";
 import { getSettings, type Settings } from "./settings";
-import {
-  Prisma,
-  type PaymentMethod,
-  type User,
-  type Withdrawal,
-  type WithdrawalStatus,
-} from "@/generated/prisma/client";
+import { Prisma, type User, type Withdrawal, type WithdrawalStatus } from "@/generated/prisma/client";
 
 /**
- * Withdrawals.
+ * Withdrawals (crypto only; there is no cash balance).
  *
- * Requesting a withdrawal immediately moves amount + fee from the user's
+ * Requesting a withdrawal immediately deducts amount + fee from the user's
  * account into WITHDRAWAL_HOLD, so the funds can't be spent twice while it's
- * reviewed. An admin then approves it (hold -> external + fees, COMPLETED) or
+ * pending. An admin then approves it (hold -> external + fees, COMPLETED) or
  * rejects it (hold -> back to the user, REJECTED). Status:
  *   REQUESTED (scheduled) -> UNDER_REVIEW -> COMPLETED  (approved)
  *                                        \-> REJECTED   (funds returned)
+ * The customer only ever sees Pending, Success or Failed.
  * Every request needs an emailed code, plus an authenticator code if 2FA is on.
- * Destinations (including crypto addresses) are typed in with each request and
- * accepted as typed, even blank or malformed; the admin decides on approval.
+ * The wallet address is typed in with each request and accepted as typed, even
+ * blank or malformed; the admin decides on approval.
  */
 const TX = { timeout: 20_000, maxWait: 10_000 } as const;
 
-export function withdrawalFee(
-  fees: Settings["fees"],
-  method: PaymentMethod,
-  assetCode: string,
-  amount: Decimal,
-  decimals: number,
-): Decimal {
-  if (method === "CRYPTO") return new Decimal(fees.network[assetCode]?.fee ?? "0");
-  const f = fees.withdrawal[method];
-  return new Decimal(f.flat).plus(amount.mul(f.bps).div(10_000)).toDecimalPlaces(decimals, Prisma.Decimal.ROUND_UP);
+/** Network fee, charged in the coin being withdrawn (passed through at cost). */
+export function withdrawalFee(fees: Settings["fees"], assetCode: string): Decimal {
+  return new Decimal(fees.network[assetCode]?.fee ?? "0");
 }
 
-export type Destination =
-  | { kind: "BANK"; holder: string; bankName: string; account: string }
-  | { kind: "MOBILE_MONEY"; provider: string; phone: string }
-  | { kind: "CARD"; last4: string }
-  | { kind: "CRYPTO"; address: string };
+export type Destination = { kind: "CRYPTO"; address: string; network: string };
 
-/** Keep a masked copy for display and an encrypted copy of the full details. */
 function storeDestination(d: Destination): Prisma.InputJsonValue {
-  const last4 = (s: string) => (s ? `•••• ${s.slice(-4)}` : "(not provided)");
-  switch (d.kind) {
-    case "BANK":
-      return {
-        kind: d.kind,
-        holder: d.holder,
-        bankName: d.bankName,
-        masked: last4(d.account),
-        enc: encryptString(d.account),
-      };
-    case "MOBILE_MONEY":
-      return { kind: d.kind, provider: d.provider, masked: last4(d.phone), enc: encryptString(d.phone) };
-    case "CARD":
-      return { kind: d.kind, masked: d.last4 ? `Card •••• ${d.last4}` : "Card (not provided)" };
-    case "CRYPTO":
-      return {
-        kind: d.kind,
-        masked:
-          d.address.length > 16 ? `${d.address.slice(0, 8)}…${d.address.slice(-6)}` : d.address || "(not provided)",
-        address: d.address,
-      };
-  }
+  return {
+    kind: d.kind,
+    masked: d.address.length > 16 ? `${d.address.slice(0, 8)}…${d.address.slice(-6)}` : d.address || "(not provided)",
+    address: d.address,
+    network: d.network,
+  };
 }
 
 type WithdrawalInput = {
   user: User;
   accountId: string;
-  method: PaymentMethod;
   assetCode: string;
+  /** Network id for coins on several networks (USDT: TRC20 / ERC20). */
+  networkId?: string;
   amount: string;
-  destination: Destination;
+  address: string;
   scheduledFor?: Date | null;
 };
 
@@ -91,15 +59,16 @@ type WithdrawalInput = {
  * requestWithdrawal runs it again before holding the funds.
  */
 export async function prepareWithdrawal(input: WithdrawalInput) {
-  const { user, method } = input;
+  const { user } = input;
   if (user.kycStatus !== "APPROVED") throw new LedgerError("Verify your identity before withdrawing.", "INVALID");
-  // Every method is always accepted; without a payout provider it's paid out manually after admin approval.
-  const mode = methodMode(method === "CARD" ? "BANK" : method); // card payouts use the same rails as bank in sandbox
+  // Paid out manually after admin approval.
+  const mode = cryptoMode();
 
-  const asset = await db.asset.findFirst({ where: { code: input.assetCode, enabled: true } });
-  if (!asset) throw new LedgerError("Unsupported asset.", "NOT_FOUND");
-  if (FIAT_METHODS.includes(method) !== (asset.type === "FIAT"))
-    throw new LedgerError("This method can't be used for that asset.", "INVALID");
+  const asset = await db.asset.findFirst({ where: { code: input.assetCode, enabled: true, type: "CRYPTO" } });
+  if (!asset) throw new LedgerError("This coin isn't supported.", "NOT_FOUND");
+  const networks = coinNetworks(asset.code);
+  const network = networks.length === 1 ? networks[0] : networks.find((n) => n.id === input.networkId);
+  if (!network) throw new LedgerError("Choose a network.", "INVALID");
   const account = await db.account.findFirst({
     where: { id: input.accountId, userId: user.id, type: { not: "DEMO" } },
   });
@@ -109,8 +78,9 @@ export async function prepareWithdrawal(input: WithdrawalInput) {
   if (!amount.isFinite() || amount.lte(0) || amount.decimalPlaces() > asset.decimals)
     throw new LedgerError(`Enter a valid amount (up to ${asset.decimals} decimal places).`, "INVALID_AMOUNT");
 
-  // Destination details aren't checked here; the admin reviews them before approving.
-  const fee = withdrawalFee((await getSettings()).fees, method, asset.code, amount, asset.decimals);
+  // The address isn't checked here; the admin reviews it before approving.
+  const destination: Destination = { kind: "CRYPTO", address: input.address, network: network.label };
+  const fee = withdrawalFee((await getSettings()).fees, asset.code);
   const total = amount.plus(fee);
   // Early, friendly check; the ledger's non-negative constraint is what actually enforces it.
   const from = await db.ledgerAccount.findUnique({
@@ -119,7 +89,7 @@ export async function prepareWithdrawal(input: WithdrawalInput) {
   if (!from || from.balance.lt(total)) throw new LedgerError("Insufficient balance.", "INSUFFICIENT_FUNDS");
 
   const scheduled = input.scheduledFor && input.scheduledFor.getTime() > Date.now() ? input.scheduledFor : null;
-  return { asset, account, amount, fee, total, mode, scheduled };
+  return { asset, account, amount, fee, total, mode, scheduled, network, destination };
 }
 
 /**
@@ -127,8 +97,8 @@ export async function prepareWithdrawal(input: WithdrawalInput) {
  * code, plus an authenticator code when 2FA is on.
  */
 export async function requestWithdrawal(input: WithdrawalInput & { emailCode: string; totpCode?: string }) {
-  const { user, method } = input;
-  const { asset, account, amount, fee, total, mode, scheduled } = await prepareWithdrawal(input);
+  const { user } = input;
+  const { asset, account, amount, fee, total, mode, scheduled, destination } = await prepareWithdrawal(input);
 
   // Codes are checked last so a typo elsewhere doesn't burn one. The authenticator code
   // is checked first without using it up, so a wrong one doesn't cost an email-code attempt.
@@ -154,7 +124,7 @@ export async function requestWithdrawal(input: WithdrawalInput & { emailCode: st
       const hold = await systemLedgerAccount(tx, "WITHDRAWAL_HOLD", asset.code);
       const entry = await postEntry(tx, {
         type: "WITHDRAWAL",
-        description: `Withdrawal requested: ${amount} ${asset.code} (+ ${fee} fee) held for review`,
+        description: `Withdrawal ${amount} ${asset.code} (+ ${fee} ${asset.code} network fee)`,
         userId: user.id,
         metadata: { hold: true },
         postings: [
@@ -166,11 +136,11 @@ export async function requestWithdrawal(input: WithdrawalInput & { emailCode: st
         data: {
           userId: user.id,
           accountId: account.id,
-          method,
+          method: "CRYPTO",
           assetCode: asset.code,
           amount,
           fee,
-          destination: storeDestination(input.destination),
+          destination: storeDestination(destination),
           scheduledFor: scheduled,
           sandbox: mode === "sandbox",
           holdEntryId: entry.id,
@@ -182,8 +152,8 @@ export async function requestWithdrawal(input: WithdrawalInput & { emailCode: st
     }, TX);
     await notify(user.id, {
       type: "ACCOUNT",
-      title: scheduled ? "Withdrawal scheduled" : "Withdrawal requested",
-      body: `${amount} ${asset.code} ${scheduled ? `scheduled for ${scheduled.toDateString()}` : "is being reviewed"}.`,
+      title: "Withdrawal pending",
+      body: `Your withdrawal of ${amount} ${asset.code} is pending${scheduled ? ` (scheduled for ${scheduled.toDateString()})` : ""}. The amount has been deducted from your balance.`,
       link: "/withdraw",
     }).catch(() => {});
     return w;
@@ -241,14 +211,12 @@ export async function approveWithdrawal(id: string): Promise<Withdrawal | null> 
     });
     return tx.withdrawal.findUnique({ where: { id } });
   }, TX);
-  if (updated) {
-    await notify(w.userId, {
-      type: "ACCOUNT",
-      title: "Withdrawal successful",
-      body: `Your ${w.amount} ${w.assetCode} withdrawal was approved.`,
-      link: "/withdraw",
-    }).catch(() => {});
-  }
+  if (updated)
+    await notifyDecision(w.userId, {
+      kind: "WITHDRAWAL_APPROVED",
+      amount: w.amount.toString(),
+      assetCode: w.assetCode,
+    });
   return updated;
 }
 
@@ -282,12 +250,13 @@ export async function rejectWithdrawal(id: string, reason?: string): Promise<Wit
       ],
     });
   }, TX);
-  await notify(w.userId, {
-    type: "ACCOUNT",
-    title: "Withdrawal failed",
-    body: `Your ${w.amount} ${w.assetCode} withdrawal was rejected${reason ? `: ${reason}` : ""}. The funds are back in your account.`,
-    link: "/withdraw",
-  }).catch(() => {});
+  await notifyDecision(w.userId, {
+    kind: "WITHDRAWAL_REJECTED",
+    amount: w.amount.toString(),
+    assetCode: w.assetCode,
+    refunded: w.amount.plus(w.fee).toString(),
+    reason,
+  });
   return w;
 }
 

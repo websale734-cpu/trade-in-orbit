@@ -388,8 +388,6 @@ const fr = {
       showBalance: "Afficher le solde",
       hideBalance: "Masquer le solde",
       dayChange: "Variation sur 24 h",
-      cash: "Solde en espèces",
-      cashHint: "Disponible pour acheter des pièces",
       currency: "Afficher en",
       quick: { deposit: "Déposer", withdraw: "Retirer", buy: "Acheter", sell: "Vendre", swap: "Échanger" },
       watchlist: "Liste de suivi",
@@ -484,7 +482,6 @@ const fr = {
         price: "Prix aujourd'hui",
         change24h: "{pct} sur les dernières 24 heures",
         last7Days: "7 derniers jours",
-        cashNote: "Le dollar américain est votre solde en espèces. Vous pouvez le convertir en pièces à tout moment.",
         activity: "Activité récente",
         activityEmpty: "Pas encore d'activité pour cette pièce dans ce compte.",
       },
@@ -492,9 +489,8 @@ const fr = {
       openIntro:
         "Des comptes séparés aident à organiser l'argent, par exemple un pour le trading et un pour l'épargne.",
       depositIntro:
-        "Amenez de l'argent ou des pièces sur Trade In Orbit. Votre solde se met à jour une fois le paiement confirmé.",
-      withdrawIntro:
-        "Envoyez des pièces vers une adresse de portefeuille hors de Trade In Orbit, ou de l'argent vers votre banque.",
+        "Déposez des cryptomonnaies sur votre portefeuille Trade In Orbit. Elles sont ajoutées à votre solde dès qu'un administrateur confirme leur réception.",
+      withdrawIntro: "Envoyez des pièces vers une adresse de portefeuille crypto hors de Trade In Orbit.",
     },
     convert: {
       title: "Convertir",

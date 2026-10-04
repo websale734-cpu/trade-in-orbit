@@ -10,6 +10,8 @@ import { revokeAllSessions } from "@/server/auth/session";
 import { completeDeposit, failDeposit } from "@/server/funding";
 import { approveWithdrawal, rejectWithdrawal } from "@/server/withdrawals";
 import { saveSetting, settingsSchemas, type SettingsKey } from "@/server/settings";
+import { getDepositWallets, saveDepositWallets, supportedCoins, walletKey } from "@/server/wallets";
+import { coinNetworks } from "@/config/funding";
 import { notify } from "@/server/notify/notifications";
 import type { FormState } from "@/components/ui/form";
 
@@ -187,27 +189,86 @@ export async function decideKyc(_p: FormState | undefined, fd: FormData): Promis
 // Payments
 // ---------------------------------------------------------------------------
 
+/**
+ * Approve (credit the coins) or reject a pending deposit, after checking the
+ * platform wallet. The customer gets an email and an in-app notification;
+ * every decision goes to the private audit log.
+ */
 export async function decideDeposit(_p: FormState | undefined, fd: FormData): Promise<FormState> {
   try {
     const admin = await assertPermission("payments.review");
     const id = String(fd.get("depositId"));
-    if (fd.get("decision") === "confirm") {
-      const d = await completeDeposit(id, String(fd.get("providerRef") || "") || undefined);
-      if (!d) return { error: "This deposit is no longer pending." };
-      await audit(
-        admin,
-        "deposit.confirm",
-        { type: "deposit", id },
-        { providerRef: String(fd.get("providerRef") || "") },
-      );
-    } else {
-      const r = reason.safeParse(fd.get("reason"));
-      if (!r.success) return { error: r.error.issues[0].message };
-      if (!(await failDeposit(id, r.data))) return { error: "This deposit is no longer pending." };
-      await audit(admin, "deposit.fail", { type: "deposit", id }, { reason: r.data });
+    const approve = fd.get("decision") === "approve";
+    let why: string | undefined;
+    if (!approve) {
+      const raw = String(fd.get("reason") ?? "").trim();
+      if (raw.length > 500) return { error: "Keep the reason under 500 characters." };
+      why = raw || undefined;
     }
+    const pending = await db.deposit.findUnique({ where: { id }, select: { userId: true, method: true } });
+    if (pending?.userId === admin.id) return { error: "You can't decide on your own deposit." };
+    if (approve && pending && pending.method !== "CRYPTO")
+      return { error: "Cash deposits are no longer supported, so this one can only be rejected." };
+
+    const d = approve ? await completeDeposit(id) : await failDeposit(id, why);
+    if (!d) return { error: "This deposit is no longer pending." };
+    await audit(
+      admin,
+      approve ? "deposit.approve" : "deposit.reject",
+      { type: "deposit", id },
+      {
+        adminName: admin.name,
+        decision: approve ? "APPROVED" : "REJECTED",
+        userId: d.userId,
+        amount: d.amount.toString(),
+        fee: d.fee.toString(),
+        assetCode: d.assetCode,
+        network: d.network ?? "",
+        txHash: d.providerRef ?? "",
+        decidedAt: new Date().toISOString(),
+        ...(why ? { reason: why } : {}),
+      },
+    );
     revalidatePath("/admin/deposits");
-    return { message: "Deposit updated." };
+    revalidatePath(`/admin/users/${d.userId}`);
+    return {
+      message: approve
+        ? "Approved. The coins were added to the customer's balance and they've been emailed."
+        : "Rejected. Nothing was credited, and the customer has been emailed.",
+    };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** Save the platform deposit wallet addresses (one per coin, one per network for USDT). */
+export async function updateDepositWallets(_p: FormState | undefined, fd: FormData): Promise<FormState> {
+  try {
+    const admin = await assertPermission("settings.manage");
+    const before = await getDepositWallets();
+    const next: Record<string, string> = {};
+    for (const c of await supportedCoins())
+      for (const n of coinNetworks(c.code)) {
+        const key = walletKey(c.code, n.id);
+        const value = String(fd.get(key) ?? "").trim();
+        if (value.length > 200) return { error: `The ${c.code} (${n.label}) address is too long.` };
+        if (/\s/.test(value)) return { error: `The ${c.code} (${n.label}) address can't contain spaces.` };
+        if (value) next[key] = value;
+      }
+    await saveDepositWallets(next, admin.id);
+    const changed = [...new Set([...Object.keys(before), ...Object.keys(next)])].filter((k) => before[k] !== next[k]);
+    await audit(
+      admin,
+      "wallets.update",
+      { type: "setting", id: "depositWallets" },
+      {
+        adminName: admin.name,
+        changed: Object.fromEntries(changed.map((k) => [k, { from: before[k] ?? "", to: next[k] ?? "" }])),
+      },
+    );
+    revalidatePath("/admin/wallets");
+    revalidatePath("/deposit");
+    return { message: changed.length ? `Saved. ${changed.length} address(es) changed.` : "Saved. Nothing changed." };
   } catch (err) {
     return failure(err);
   }
@@ -287,7 +348,7 @@ export async function toggleAsset(fd: FormData): Promise<void> {
   const admin = await assertPermission("settings.manage");
   const code = String(fd.get("code"));
   const field = fd.get("field") === "tradingEnabled" ? "tradingEnabled" : "enabled";
-  if (code === "USD" && field === "enabled") return; // the settlement currency can't be disabled
+  if (code === "USD") return; // legacy cash asset: not offered anywhere
   const asset = await db.asset.findUniqueOrThrow({ where: { code } });
   const value = !asset[field];
   await db.asset.update({ where: { code }, data: { [field]: value } });

@@ -5,10 +5,11 @@ import { toggleAsset } from "../actions";
 
 export const metadata = { title: "Coins & pairs" };
 
-/** Enable/disable coins (deposits, withdrawals, visibility) and their X/USD trading pairs. */
+/** Enable/disable coins (deposits, withdrawals, visibility) and their X/USDT trading pairs. */
 export default async function AdminCoins() {
   await requirePermission("settings.manage");
-  const assets = await db.asset.findMany({ orderBy: { sortOrder: "asc" } });
+  // Crypto only: there is no cash balance (the legacy USD asset stays in the database for old history).
+  const assets = await db.asset.findMany({ where: { type: "CRYPTO" }, orderBy: { sortOrder: "asc" } });
   const Toggle = ({
     code,
     field,
@@ -55,7 +56,7 @@ export default async function AdminCoins() {
               <th className="px-4 py-3 font-medium">Asset</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Coin enabled</th>
-              <th className="px-4 py-3 font-medium">Trading pair (/USD)</th>
+              <th className="px-4 py-3 font-medium">Trading pair (/USDT)</th>
             </tr>
           </thead>
           <tbody>
@@ -66,14 +67,10 @@ export default async function AdminCoins() {
                 </td>
                 <td className="px-4 py-3 text-xs">{a.type}</td>
                 <td className="px-4 py-3">
-                  <Toggle code={a.code} field="enabled" on={a.enabled} locked={a.code === "USD"} />
+                  <Toggle code={a.code} field="enabled" on={a.enabled} />
                 </td>
                 <td className="px-4 py-3">
-                  {a.type === "CRYPTO" ? (
-                    <Toggle code={a.code} field="tradingEnabled" on={a.tradingEnabled} />
-                  ) : (
-                    <span className="text-xs text-muted">Settlement currency</span>
-                  )}
+                  <Toggle code={a.code} field="tradingEnabled" on={a.tradingEnabled} />
                 </td>
               </tr>
             ))}

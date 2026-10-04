@@ -98,7 +98,6 @@ All variables are documented in [`.env.example`](.env.example). Secrets are read
 | `SMS_PROVIDER`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` | 2 | yes | SMS codes via Twilio Verify (`console` in dev only) |
 | `BINANCE_REST_URL` | 3 | no | Price history for charts (Binance public market data) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | 3 | for push | Web Push keys (`npx web-push generate-vapid-keys`); blank = in-app notifications only |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | 4 | for cards | Card deposits |
 | `CRON_SECRET` | 4 | prod | Protects `/api/cron/process` (orders, withdrawals, alerts, recurring buys, statement notices) |
 | `E2E_BASE_URL`, `E2E_EMAIL`, `E2E_PASSWORD` | 8 | no | Playwright smoke tests |
 
@@ -192,7 +191,7 @@ tests/
 - **Deposits** (bank, card, crypto, mobile money):
   - Fees, limits and arrival time are shown up front.
   - A deposit is **Pending** until confirmed; crediting is idempotent.
-  - Card payments use Stripe Checkout when `STRIPE_SECRET_KEY` is set; `/api/webhooks/stripe` verifies Stripe's signature (and a 5-minute timestamp window) before crediting.
+  - Crypto only (no cash balance): customers deposit to admin-set wallet addresses (Admin → Deposit wallets) and each deposit stays Pending until an admin approves it; withdrawals are held and approved the same way.
   - Other providers plug into `src/server/funding.ts`. Until then they run in **sandbox mode (development only, refused in production)**: sandbox deposits and crypto addresses are labelled, with "Simulate confirmation" tools.
 - **Withdrawals** (bank, card, crypto, mobile money):
   - Funds (amount + fee) move to `WITHDRAWAL_HOLD` at request time.
@@ -263,7 +262,7 @@ tests/
   - The ledger integration test.
   - The Phase 6–8 browser end-to-end run passed 62/63 checks. The one failure was the test's own assertion; the feature was verified manually.
 - **CI.** GitHub Actions (`.github/workflows/ci.yml`) runs prisma validate, lint, typecheck, unit tests, audit and build, plus optional e2e against a disposable Supabase CI project.
-- **Deployment.** **[DEPLOYMENT.md](DEPLOYMENT.md)** covers Vercel + Supabase, environment variables, migrations, cron (`vercel.json`), Stripe webhooks, providers and the go-live checklist.
+- **Deployment.** **[DEPLOYMENT.md](DEPLOYMENT.md)** covers Vercel + Supabase, environment variables, migrations, cron (`vercel.json`), providers and the go-live checklist.
 
 ### Postponed
 

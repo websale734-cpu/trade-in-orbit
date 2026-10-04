@@ -27,9 +27,9 @@ export const helpTopics: { id: string; title: string; items: { q: string; a: str
     id: "funding",
     title: "Deposits & withdrawals",
     items: [
-      { q: "How can I deposit?", a: "By card, bank transfer or crypto, from the Deposit page. Fees and limits are shown before you confirm." },
-      { q: "How long do withdrawals take?", a: "Withdrawals are reviewed for security, then sent. Crypto usually arrives within an hour of approval; bank transfers can take 1-3 business days." },
-      { q: "Why is my withdrawal on hold?", a: "Every withdrawal is reviewed by our team before it's sent. While it shows as Pending, the amount is held from your balance; if it's rejected, the funds go back to your account. The withdrawal page shows the current status." },
+      { q: "How can I deposit?", a: "In crypto only, from the Deposit page: pick a coin (and for USDT, the network), send it to the address or QR code shown, then tell us the amount. It shows as Pending until our team confirms it arrived, then it is added to your balance and we email you." },
+      { q: "How long do withdrawals take?", a: "Withdrawals go to a crypto wallet address and are approved by our team first. They usually arrive within an hour of approval, and we email you when it is approved or rejected." },
+      { q: "Why is my withdrawal Pending?", a: "Every withdrawal is approved by our team before it's sent. While it shows as Pending, the amount is deducted from your balance; if it's rejected it shows as Failed and the funds go back to your account. The Withdraw and History pages show the current status." },
     ],
   },
   {

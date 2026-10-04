@@ -13,33 +13,27 @@ import {
   type WithdrawReview,
 } from "./actions";
 
-type Method = "BANK" | "CARD" | "MOBILE_MONEY" | "CRYPTO";
-const LABELS: Record<Method, string> = {
-  BANK: "Bank transfer",
-  CARD: "Card",
-  MOBILE_MONEY: "Mobile money",
-  CRYPTO: "Crypto wallet",
-};
+export type WithdrawCoin = { code: string; name: string; fee: string; networks: { id: string; label: string }[] };
 
 const qty = (x: string | number) => Number(x).toLocaleString("en-US", { maximumFractionDigits: 8 });
 
+/** Crypto withdrawal: coin, amount and destination wallet address, then a confirmation screen. */
 export function WithdrawForm({
   accounts,
-  fees,
+  coins,
   arrival,
   usesTotp,
 }: {
   accounts: { id: string; name: string; balances: Record<string, string> }[];
-  fees: {
-    fiat: Record<string, { flat: number; bps: number }>;
-    network: Record<string, { fee: string; network: string }>;
-  };
-  arrival: Record<Method, string>;
+  coins: WithdrawCoin[];
+  arrival: string;
   usesTotp: boolean;
 }) {
-  const [method, setMethod] = useState<Method>("BANK");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
-  const [asset, setAsset] = useState("BTC");
+  const acctFor = (id: string) => accounts.find((a) => a.id === id) ?? accounts[0];
+  const held = (id: string) => coins.filter((c) => Number(acctFor(id)?.balances[c.code] ?? 0) > 0);
+  const [asset, setAsset] = useState(() => (held(accounts[0]?.id ?? "")[0] ?? coins[0])?.code ?? "BTC");
+  const [networkId, setNetworkId] = useState("");
   const [amount, setAmount] = useState("");
   const [state, action] = useActionState(reviewWithdrawal, undefined);
   // The review the user left (Back keeps the typed details; Done after a successful request clears them).
@@ -47,24 +41,22 @@ export function WithdrawForm({
   const review = state?.review && left?.from !== state ? state.review : null;
   const v = (k: string) => (left?.from === state && left?.clear ? "" : state?.values?.[k]);
 
-  const acct = accounts.find((a) => a.id === accountId) ?? accounts[0];
-  const assetCode = method === "CRYPTO" ? asset : "USD";
+  const acct = acctFor(accountId);
+  const coin = coins.find((c) => c.code === asset) ?? coins[0];
+  const assetCode = coin?.code ?? asset;
   const available = Number(acct?.balances[assetCode] ?? 0);
   const n = Number(amount) || 0;
-  const fee =
-    method === "CRYPTO"
-      ? Number(fees.network[asset]?.fee ?? 0)
-      : fees.fiat[method].flat + (n * fees.fiat[method].bps) / 10_000;
-  const cryptoAssets = Object.keys(fees.network).filter((c) => Number(acct?.balances[c] ?? 0) > 0);
+  const fee = Number(coin?.fee ?? 0);
+  const listed = held(accountId);
+  const multi = (coin?.networks.length ?? 0) > 1;
+  const network = multi ? coin!.networks.find((x) => x.id === networkId) : coin?.networks[0];
 
   if (review)
     return (
       <ConfirmStep
         key={review.id}
         review={review}
-        method={method}
-        arrival={arrival[method]}
-        network={method === "CRYPTO" ? fees.network[review.assetCode]?.network : undefined}
+        arrival={arrival}
         usesTotp={usesTotp}
         onBack={() => setLeft({ from: state!, clear: false })}
         onDone={() => {
@@ -76,63 +68,84 @@ export function WithdrawForm({
 
   return (
     <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6 lg:max-w-3xl" aria-label="Withdrawal request">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Method">
-        {(Object.keys(LABELS) as Method[]).map((m) => (
-          <button
-            key={m}
-            type="button"
-            role="radio"
-            aria-checked={method === m}
-            onClick={() => {
-              setMethod(m);
-              setAmount("");
-            }}
-            className={cn(
-              "rounded-xl border px-2 py-2.5 text-sm font-medium",
-              method === m ? "border-accent bg-surface-strong" : "border-line text-muted hover:bg-surface",
-            )}
-          >
-            {LABELS[m]}
-          </button>
-        ))}
-      </div>
-
+      <h2 className="text-base font-semibold sm:text-lg">Withdraw to a crypto wallet</h2>
       <form action={action} className="mt-5 space-y-4" noValidate>
         {left?.from !== state && <FormMessage state={state} />}
-        <input type="hidden" name="method" value={method} />
         <input type="hidden" name="assetCode" value={assetCode} />
-        <div className={cn("grid gap-4", method === "CRYPTO" && "sm:grid-cols-2")}>
+        <div className={cn("grid gap-4", accounts.length > 1 && "sm:grid-cols-2")}>
+          {accounts.length > 1 ? (
+            <div>
+              <label htmlFor="accountId" className="mb-1.5 block text-sm font-medium">
+                From account
+              </label>
+              <select
+                id="accountId"
+                name="accountId"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className={inputClasses}
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <input type="hidden" name="accountId" value={accountId} />
+          )}
           <div>
-            <label htmlFor="accountId" className="mb-1.5 block text-sm font-medium">
-              From account
+            <label htmlFor="asset" className="mb-1.5 block text-sm font-medium">
+              Coin
             </label>
             <select
-              id="accountId"
-              name="accountId"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              id="asset"
+              value={assetCode}
+              onChange={(e) => {
+                setAsset(e.target.value);
+                setNetworkId("");
+                setAmount("");
+              }}
               className={inputClasses}
             >
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
+              {(listed.length ? listed : coins).map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} · {c.name}
                 </option>
               ))}
             </select>
           </div>
-          {method === "CRYPTO" && (
-            <div>
-              <label htmlFor="asset" className="mb-1.5 block text-sm font-medium">
-                Coin
-              </label>
-              <select id="asset" value={asset} onChange={(e) => setAsset(e.target.value)} className={inputClasses}>
-                {(cryptoAssets.length ? cryptoAssets : Object.keys(fees.network)).map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
+
+        {multi ? (
+          <div>
+            <span className="mb-1.5 block text-sm font-medium">Network</span>
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Network">
+              {coin!.networks.map((x) => (
+                <label
+                  key={x.id}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium transition-colors",
+                    networkId === x.id ? "border-accent bg-surface-strong" : "border-line text-muted hover:bg-surface",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="networkId"
+                    value={x.id}
+                    checked={networkId === x.id}
+                    onChange={() => setNetworkId(x.id)}
+                    className="accent-[var(--color-accent)]"
+                  />
+                  {x.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <input type="hidden" name="networkId" value={coin?.networks[0]?.id ?? ""} />
+        )}
 
         <div>
           <label htmlFor="amount" className="mb-1.5 block text-sm font-medium">
@@ -162,56 +175,24 @@ export function WithdrawForm({
         </div>
 
         {/* Destination: typed in directly, nothing to save first. */}
-        {method === "BANK" && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Account holder" name="holder" autoComplete="name" defaultValue={v("holder")} />
-            <Field label="Bank name" name="bankName" defaultValue={v("bankName")} />
-            <Field
-              label="Account number / IBAN"
-              name="account"
-              className="sm:col-span-2"
-              autoComplete="off"
-              defaultValue={v("account")}
-            />
-          </div>
-        )}
-        {method === "MOBILE_MONEY" && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Provider" name="provider" placeholder="e.g. M-Pesa, MTN MoMo" defaultValue={v("provider")} />
-            <Field
-              label="Mobile number"
-              name="phone"
-              type="tel"
-              placeholder="+254 712 345678"
-              defaultValue={v("phone")}
-            />
-          </div>
-        )}
-        {method === "CARD" && (
-          <Field
-            label="Last 4 digits of the card you deposited with"
-            name="last4"
-            defaultValue={v("last4")}
-            inputMode="numeric"
-            maxLength={4}
-          />
-        )}
-        {method === "CRYPTO" && (
-          <Field
-            label={`${asset} wallet address`}
-            name="address"
-            placeholder="Paste the address you're sending to"
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            defaultValue={v("address")}
-            hint={`Only send on the ${fees.network[asset]?.network} network. Crypto sent to a wrong address can't be recovered.`}
-          />
-        )}
+        <Field
+          label={`${assetCode} wallet address`}
+          name="address"
+          placeholder="Paste the address you're sending to"
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          defaultValue={v("address")}
+          hint={
+            network
+              ? `Use a ${assetCode} address on the ${network.label} network. Crypto sent to a wrong address can't be recovered.`
+              : `Choose a network first. Crypto sent to a wrong address can't be recovered.`
+          }
+        />
 
         <dl className="space-y-1.5 rounded-xl border border-line bg-surface p-3 text-sm">
           <div className="flex justify-between">
-            <dt className="text-muted">{method === "CRYPTO" ? "Network fee" : "Fee"}</dt>
+            <dt className="text-muted">Network fee</dt>
             <dd className="tabular font-medium">
               {qty(fee)} {assetCode}
             </dd>
@@ -222,9 +203,9 @@ export function WithdrawForm({
               {qty(n + fee)} {assetCode}
             </dd>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-4">
             <dt className="text-muted">Estimated arrival</dt>
-            <dd className="font-medium">{arrival[method]}</dd>
+            <dd className="text-right font-medium">{arrival}</dd>
           </div>
         </dl>
 
@@ -250,17 +231,13 @@ export function WithdrawForm({
 /** Second screen: check the details and enter the confirmation code(s). */
 function ConfirmStep({
   review,
-  method,
   arrival,
-  network,
   usesTotp,
   onBack,
   onDone,
 }: {
   review: WithdrawReview;
-  method: Method;
   arrival: string;
-  network?: string;
   usesTotp: boolean;
   onBack: () => void;
   onDone: () => void;
@@ -285,9 +262,11 @@ function ConfirmStep({
     return (
       <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6 lg:max-w-3xl" aria-label="Withdrawal requested">
         <CheckCircle2 className="h-10 w-10 text-up" />
-        <h2 className="mt-3 text-lg font-semibold">Withdrawal requested</h2>
+        <h2 className="mt-3 text-lg font-semibold">Withdrawal submitted</h2>
         <p className="mt-1 text-sm text-muted">{state.message}</p>
-        <p className="mt-1 text-sm text-muted">You can follow it under Withdrawal status below.</p>
+        <p className="mt-1 text-sm text-muted">
+          You can follow it under Withdrawal status below. We&apos;ll email you when it&apos;s approved or rejected.
+        </p>
         <button type="button" onClick={onDone} className={buttonClasses({ size: "lg", className: "mt-5 w-full" })}>
           Done
         </button>
@@ -295,13 +274,12 @@ function ConfirmStep({
     );
 
   const rows: [string, string][] = [
-    ["Method", LABELS[method]],
     ["From account", review.accountName],
+    ["Coin", review.assetCode],
     ["Amount", `${qty(review.amount)} ${review.assetCode}`],
-    [method === "CRYPTO" ? "Network fee" : "Fee", `${qty(review.fee)} ${review.assetCode}`],
+    ["Network fee", `${qty(review.fee)} ${review.assetCode}`],
     ["Total deducted", `${qty(review.total)} ${review.assetCode}`],
     ...review.destination,
-    ...(network ? ([["Network", network]] as [string, string][]) : []),
     ["Estimated arrival", arrival],
     ...(review.scheduledFor
       ? ([

@@ -7,20 +7,15 @@ import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
 import { db } from "@/server/db";
 import { ensureDefaultAccount, listAccounts } from "@/server/ledger";
-import { WITHDRAWAL_ARRIVAL } from "@/config/funding";
+import { coinNetworks, WITHDRAWAL_ARRIVAL } from "@/config/funding";
 import { getSettings } from "@/server/settings";
 import { withdrawalOutcome } from "@/server/withdrawals";
-import { cn } from "@/lib/utils";
+import { supportedCoins } from "@/server/wallets";
+import { StatusBadge } from "@/components/app/status-badge";
 import { sandboxAdvanceWithdrawal, sandboxRejectWithdrawal } from "../sandbox-actions";
-import { WithdrawForm } from "./withdraw-form";
+import { WithdrawForm, type WithdrawCoin } from "./withdraw-form";
 
 export const metadata: Metadata = { title: "Withdraw" };
-
-const OUTCOME = {
-  PENDING: { label: "Pending", className: "bg-warn/15 text-warn" },
-  SUCCESS: { label: "Success", className: "bg-up/15 text-up" },
-  FAILED: { label: "Failed", className: "bg-down/15 text-down" },
-} as const;
 
 export default async function WithdrawPage() {
   const { user } = await requireUser("/withdraw");
@@ -39,12 +34,19 @@ export default async function WithdrawPage() {
     );
 
   await ensureDefaultAccount(user.id);
-  const [accounts, withdrawals, settings] = await Promise.all([
+  const [accounts, withdrawals, settings, assets] = await Promise.all([
     listAccounts(user.id),
     db.withdrawal.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 15 }),
     getSettings(),
+    supportedCoins(),
   ]);
   const devTools = process.env.NODE_ENV !== "production";
+  const coins: WithdrawCoin[] = assets.map((a) => ({
+    code: a.code,
+    name: a.name,
+    fee: settings.fees.network[a.code]?.fee ?? "0",
+    networks: coinNetworks(a.code),
+  }));
 
   return (
     <div className="min-w-0 space-y-6 sm:space-y-8">
@@ -61,7 +63,7 @@ export default async function WithdrawPage() {
           name: a.name,
           balances: Object.fromEntries(a.ledgerAccounts.map((l) => [l.assetCode, l.balance.toString()])),
         }))}
-        fees={{ fiat: settings.fees.withdrawal, network: settings.fees.network }}
+        coins={coins}
         arrival={WITHDRAWAL_ARRIVAL}
         usesTotp={!!user.totpEnabledAt}
       />
@@ -73,19 +75,18 @@ export default async function WithdrawPage() {
         ) : (
           <ul className="mt-3 space-y-4">
             {withdrawals.map((w) => {
-              const dest = w.destination as { masked?: string };
+              const dest = w.destination as { masked?: string; network?: string };
               const outcome = withdrawalOutcome(w.status);
               return (
                 <li key={w.id} className="rounded-2xl border border-line p-4 text-sm">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className={cn("rounded px-2 py-0.5 text-xs font-bold", OUTCOME[outcome].className)}>
-                      {OUTCOME[outcome].label}
-                    </span>
+                    <StatusBadge outcome={outcome} />
                     <span className="tabular font-semibold">
                       {Number(w.amount).toLocaleString("en-US", { maximumFractionDigits: 8 })} {w.assetCode}
                     </span>
-                    <span className="text-muted">
-                      to {dest.masked} · fee {Number(w.fee)} {w.assetCode}
+                    <span className="min-w-0 break-all text-muted">
+                      to {dest.masked}
+                      {dest.network ? ` (${dest.network})` : ""} · fee {Number(w.fee)} {w.assetCode}
                     </span>
                     {w.sandbox && <SandboxBadge />}
                     <span className="ml-auto text-xs text-muted">
@@ -99,7 +100,8 @@ export default async function WithdrawPage() {
                   )}
                   {outcome === "PENDING" && (
                     <p className="mt-3 flex items-center gap-2 text-muted">
-                      <Clock className="h-4 w-4 shrink-0" /> Awaiting approval. The amount is held from your balance.
+                      <Clock className="h-4 w-4 shrink-0" /> Awaiting approval. The amount has been deducted from your
+                      balance.
                     </p>
                   )}
                   {outcome === "SUCCESS" && (

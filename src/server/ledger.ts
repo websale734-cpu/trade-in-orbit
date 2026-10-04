@@ -49,7 +49,14 @@ export function listAccounts(userId: string) {
   return db.account.findMany({
     where: { userId, archivedAt: null, type: { not: "DEMO" } },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    include: { ledgerAccounts: { include: { asset: true }, orderBy: { asset: { sortOrder: "asc" } } } },
+    // Crypto only: the legacy USD cash asset is never shown.
+    include: {
+      ledgerAccounts: {
+        where: { asset: { type: "CRYPTO" } },
+        include: { asset: true },
+        orderBy: { asset: { sortOrder: "asc" } },
+      },
+    },
   });
 }
 
@@ -165,7 +172,7 @@ export async function transferBetweenAccounts(input: {
     db.account.findFirst({
       where: { id: input.toAccountId, userId: input.userId, archivedAt: null, type: { not: "DEMO" } },
     }),
-    db.asset.findFirst({ where: { code: input.assetCode, enabled: true } }),
+    db.asset.findFirst({ where: { code: input.assetCode, enabled: true, type: "CRYPTO" } }),
   ]);
   // Ownership is checked in the query, so another user's account ID simply isn't found.
   if (!from || !to) throw new LedgerError("Account not found.", "NOT_FOUND");
@@ -251,6 +258,7 @@ export async function adjustBalance(input: {
     db.asset.findUnique({ where: { code: input.assetCode } }),
   ]);
   if (!account || !asset) throw new LedgerError("Account or asset not found.", "NOT_FOUND");
+  if (asset.type !== "CRYPTO") throw new LedgerError("Balances are held in crypto only.", "INVALID");
   // A leading "+" is accepted: the admin form's placeholder suggests "+25 or -25".
   const clean = input.amount.trim().replace(/^\+(?=\d)/, "");
   if (!/^-?\d+(\.\d+)?$/.test(clean))

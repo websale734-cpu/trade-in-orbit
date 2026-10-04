@@ -6,7 +6,7 @@ import { db } from "@/server/db";
 import { ensureDefaultAccount } from "@/server/ledger";
 import { MAX_ACTIVE_RECURRING, MIN_RECURRING_USD } from "@/server/automation";
 import { trackedCoins } from "@/config/coins";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { updateRecurring } from "../automation-actions";
 import { RecurringForm } from "./recurring-form";
 
@@ -27,7 +27,10 @@ export default async function RecurringPage() {
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
       select: { id: true, name: true },
     }),
-    db.asset.findMany({ where: { enabled: true, tradingEnabled: true, NOT: { code: "USD" } }, select: { code: true } }),
+    db.asset.findMany({
+      where: { enabled: true, tradingEnabled: true, type: "CRYPTO", NOT: { code: "USDT" } },
+      select: { code: true },
+    }),
   ]);
   const open = new Set(tradable.map((a) => a.code));
   const coins = trackedCoins.filter((c) => open.has(c.symbol)).map((c) => c.symbol);
@@ -63,7 +66,7 @@ export default async function RecurringPage() {
                 <li key={p.id} className="py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="flex-1 font-medium">
-                      {formatMoney(Number(p.amountUsd))} of {p.assetCode} · {FREQ[p.frequency]}
+                      {Number(p.amountUsd).toLocaleString("en-US")} USDT of {p.assetCode} · {FREQ[p.frequency]}
                     </p>
                     <span
                       className={cn(
@@ -107,7 +110,7 @@ export default async function RecurringPage() {
             </ul>
           )}
           <p className="mt-3 text-xs text-subtle">
-            Each purchase is an instant buy at the live price, with your usual fee. If your USD balance is too low the
+            Each purchase is an instant buy at the live price, with your usual fee. If your USDT balance is too low the
             purchase is skipped and you&apos;re notified; three misses in a row pause the schedule.
           </p>
         </section>

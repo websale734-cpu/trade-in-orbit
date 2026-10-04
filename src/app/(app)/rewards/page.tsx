@@ -6,6 +6,7 @@ import { requireUser } from "@/server/auth/dal";
 import { affiliateStats, loyaltyStatus } from "@/server/rewards";
 import { getSettings } from "@/server/settings";
 import { siteConfig } from "@/config/site";
+import { QUOTE_ASSET } from "@/config/funding";
 import { PageHeader, PageStack, Panel, StatCard } from "@/components/app/ui";
 import { cn, formatMoney } from "@/lib/utils";
 
@@ -37,7 +38,7 @@ export default async function RewardsPage() {
           { icon: MousePointerClick, label: "Link clicks", value: stats.clicks.toLocaleString("en-US") },
           { icon: UserPlus, label: "Sign-ups", value: stats.signups.toLocaleString("en-US") },
           { icon: BadgeCheck, label: "Qualified", value: stats.qualified.toLocaleString("en-US") },
-          { icon: Award, label: "Earned", value: formatMoney(stats.earningsUsd) },
+          { icon: Award, label: "Earned", value: `${stats.earningsUsd.toLocaleString("en-US")} ${QUOTE_ASSET}` },
         ].map((s) => (
           <StatCard key={s.label} label={s.label} value={s.value} icon={<s.icon className="h-4 w-4" />} />
         ))}
@@ -52,15 +53,21 @@ export default async function RewardsPage() {
           }
           description={
             <>
-              When someone signs up with your link and their deposits reach {formatMoney(referral.minDepositUsd)}, you
-              get <strong className="text-fg">{formatMoney(referral.referrerBonusUsd)}</strong>
+              When someone signs up with your link and their deposits reach {formatMoney(referral.minDepositUsd)} in
+              value, you get{" "}
+              <strong className="text-fg">
+                {referral.referrerBonusUsd} {QUOTE_ASSET}
+              </strong>
               {referral.refereeBonusUsd > 0 && (
                 <>
                   {" "}
-                  and they get <strong className="text-fg">{formatMoney(referral.refereeBonusUsd)}</strong>
+                  and they get{" "}
+                  <strong className="text-fg">
+                    {referral.refereeBonusUsd} {QUOTE_ASSET}
+                  </strong>
                 </>
               )}
-              , paid once per friend in USD to your main account.
+              , paid once per friend to your main account.
             </>
           }
         >

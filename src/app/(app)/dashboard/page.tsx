@@ -52,7 +52,10 @@ export default async function DashboardPage() {
   const totals = new Map<string, Holding>();
   // For each coin, link to the account that holds the most of it (most users have one).
   const bestAccount = new Map<string, { accountId: string; bal: number }>();
+  // Crypto only: there is no cash balance (legacy USD rows are skipped).
+  const isCrypto = new Set(assets.filter((a) => a.type === "CRYPTO").map((a) => a.code));
   for (const r of rows) {
+    if (!isCrypto.has(r.assetCode)) continue;
     const prev = totals.get(r.assetCode);
     const sum = prev ? (Number(prev.balance) + Number(r.balance)).toString() : r.balance;
     totals.set(r.assetCode, {
@@ -121,8 +124,6 @@ export default async function DashboardPage() {
           hide: d.hideBalance,
           assets: d.assets,
           dayChange: d.dayChange,
-          cash: d.cash,
-          cashHint: d.cashHint,
         }}
         between={
           // Quick actions sit right under the balance, each in its own tile.

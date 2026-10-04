@@ -2,7 +2,7 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, ChevronRight, DollarSign, Eye, EyeOff, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Eye, EyeOff, Wallet } from "lucide-react";
 import { useMarket } from "@/components/market/market-provider";
 import { Donut, type DonutSegment } from "@/components/charts/donut";
 import { EmptyState, Panel, StatCard } from "@/components/app/ui";
@@ -104,11 +104,12 @@ function HoldingRow({
 }
 
 /**
- * Dashboard money overview, as separate cards: total balance (USD + local
- * currency), 24h change and cash, then a holdings card with the allocation
- * donut and one tappable row per coin. Values recompute live as prices stream
- * in. USD is valued at 1; an asset with no available price is listed but
- * excluded from totals, and the UI says so. The eye toggle hides every value.
+ * Dashboard money overview, as separate cards: total balance (valued in USD +
+ * local currency) and 24h change, then a holdings card with the allocation
+ * donut and one tappable row per coin. Balances are crypto only (there is no
+ * cash). Values recompute live as prices stream in; an asset with no available
+ * price is listed but excluded from totals, and the UI says so. The eye toggle
+ * hides every value.
  */
 export function PortfolioSummary({
   holdings,
@@ -137,8 +138,6 @@ export function PortfolioSummary({
     hide: string;
     assets: string;
     dayChange: string;
-    cash: string;
-    cashHint: string;
   };
 }) {
   const { tickers } = useMarket();
@@ -149,7 +148,6 @@ export function PortfolioSummary({
   const rows = useMemo(() => {
     return holdings.map((h) => {
       const qty = Number(h.balance);
-      if (h.code === "USD") return { ...h, qty, price: 1, change: 0, value: qty, value24hAgo: qty };
       const t = tickers.find((x) => x.symbol === h.code);
       if (!t) return { ...h, qty, price: null, change: 0, value: null, value24hAgo: null };
       const value = qty * t.priceUsd;
@@ -172,7 +170,6 @@ export function PortfolioSummary({
   const delta = total - before;
   const deltaPct = before > 0 ? (delta / before) * 100 : 0;
   const up = delta >= 0;
-  const cash = rows.find((r) => r.code === "USD")?.qty ?? 0;
 
   // Top holdings by value; the rest fold into "Other". Colour slots are assigned
   // by the asset's fixed order (not by rank), so a colour follows its asset.
@@ -217,9 +214,9 @@ export function PortfolioSummary({
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3" role="group" aria-label={labels.total}>
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2" role="group" aria-label={labels.total}>
         <StatCard
-          className="ring-brand sm:col-span-2 xl:col-span-1"
+          className="ring-brand"
           label={labels.total}
           icon={<Wallet className="h-4 w-4" />}
           action={eye}
@@ -249,12 +246,6 @@ export function PortfolioSummary({
               </span>
             )
           }
-        />
-        <StatCard
-          label={labels.cash}
-          icon={<DollarSign className="h-4 w-4" />}
-          value={money(cash)}
-          hint={labels.cashHint}
         />
       </div>
 

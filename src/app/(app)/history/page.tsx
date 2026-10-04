@@ -5,6 +5,11 @@ import { inputClasses } from "@/components/ui/form";
 import { buttonClasses } from "@/components/ui/button";
 import { requireUser } from "@/server/auth/dal";
 import { statementMonths, userEntries } from "@/server/statements";
+import { db } from "@/server/db";
+import { depositOutcome } from "@/server/funding";
+import { withdrawalOutcome } from "@/server/withdrawals";
+import { formatQty } from "@/lib/assets";
+import type { Deposit } from "@/generated/prisma/client";
 import { HistoryList, type HistoryRow } from "./history-list";
 import { EmptyState, PageHeader, PageStack, Panel, segmentedItem, segmentedWrap } from "@/components/app/ui";
 import { cn } from "@/lib/utils";
@@ -133,17 +138,110 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
     from: from ? new Date(`${from}T00:00:00Z`) : undefined,
     to: to ? new Date(Date.parse(`${to}T00:00:00Z`) + 86_400_000) : undefined,
   };
-  const rows = await userEntries(user.id, filter, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
-  const hasNext = rows.length > PAGE_SIZE;
-  const historyRows: HistoryRow[] = rows.slice(0, PAGE_SIZE).map((e) => ({
-    id: e.id,
-    type: e.type,
-    label: rowLabel(e),
-    description: e.description,
-    createdAt: e.createdAt.toISOString(),
-    accounts: e.accounts,
-    changes: e.changes,
-  }));
+  // One row per ledger entry, plus deposits that haven't credited anything yet (Pending or Failed).
+  // Fetch one extra entry before this page so its deposits can be slotted in by date.
+  const skip = (page - 1) * PAGE_SIZE;
+  const fetched = await userEntries(
+    user.id,
+    { ...filter, customerView: true },
+    PAGE_SIZE + 1 + (skip > 0 ? 1 : 0),
+    Math.max(0, skip - 1),
+  );
+  const newerBound = skip > 0 ? fetched[0]?.createdAt : undefined;
+  const entries = skip > 0 ? fetched.slice(1) : fetched;
+  const hasNext = entries.length > PAGE_SIZE;
+  const rows = entries.slice(0, PAGE_SIZE);
+  const olderBound = hasNext ? rows[rows.length - 1]?.createdAt : undefined;
+
+  const depositIds = rows.flatMap((e) =>
+    e.type === "DEPOSIT" && typeof e.metadata?.depositId === "string" ? [e.metadata.depositId] : [],
+  );
+  const holdIds = rows.filter((e) => e.type === "WITHDRAWAL").map((e) => e.id);
+  const [credited, withdrawals, uncredited] = await Promise.all([
+    depositIds.length ? db.deposit.findMany({ where: { id: { in: depositIds }, userId: user.id } }) : [],
+    holdIds.length ? db.withdrawal.findMany({ where: { holdEntryId: { in: holdIds }, userId: user.id } }) : [],
+    !type || type === "DEPOSIT"
+      ? db.deposit.findMany({
+          where: {
+            userId: user.id,
+            status: { not: "COMPLETED" },
+            createdAt: {
+              gte: [filter.from, olderBound].filter(Boolean).sort((a, b) => b!.getTime() - a!.getTime())[0],
+              lt: [filter.to, newerBound].filter(Boolean).sort((a, b) => a!.getTime() - b!.getTime())[0],
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+        })
+      : [],
+  ]);
+  const depositById = new Map(credited.map((d) => [d.id, d]));
+  const withdrawalByHold = new Map(withdrawals.map((w) => [w.holdEntryId, w]));
+  const qty = (v: { toString(): string }) => formatQty(v.toString());
+
+  const depositRow = (d: Deposit, base?: Omit<HistoryRow, "status" | "details">): HistoryRow => ({
+    id: base?.id ?? `deposit-${d.id}`,
+    type: "DEPOSIT",
+    label: "Deposit",
+    description: `Deposit of ${qty(d.amount)} ${d.assetCode}${d.network ? ` on ${d.network}` : ""}`,
+    createdAt: base?.createdAt ?? d.createdAt.toISOString(),
+    accounts: base?.accounts ?? [],
+    changes: base?.changes ?? [{ asset: d.assetCode, amount: Number(d.amount) }],
+    status: depositOutcome(d.status),
+    details: [
+      ...(d.network ? ([["Network", d.network]] as [string, string][]) : []),
+      ...(d.providerRef ? ([["Transaction ID", d.providerRef]] as [string, string][]) : []),
+      ...(d.failureReason ? ([["Reason", d.failureReason]] as [string, string][]) : []),
+      ["Deposit reference", d.reference],
+    ],
+  });
+
+  const historyRows: HistoryRow[] = rows.map((e) => {
+    const base = {
+      id: e.id,
+      type: e.type,
+      label: rowLabel(e),
+      description: e.description,
+      createdAt: e.createdAt.toISOString(),
+      accounts: e.accounts,
+      changes: e.changes,
+    };
+    const dep = typeof e.metadata?.depositId === "string" ? depositById.get(e.metadata.depositId) : undefined;
+    if (e.type === "DEPOSIT" && dep) return depositRow(dep, base);
+    const w = e.type === "WITHDRAWAL" ? withdrawalByHold.get(e.id) : undefined;
+    if (w) {
+      const dest = w.destination as { masked?: string; address?: string; network?: string };
+      const outcome = withdrawalOutcome(w.status);
+      return {
+        ...base,
+        label: "Withdrawal",
+        description: `Withdrawal of ${qty(w.amount)} ${w.assetCode}${dest.masked ? ` to ${dest.masked}` : ""}`,
+        status: outcome,
+        details: [
+          ["Network fee", `${qty(w.fee)} ${w.assetCode}`],
+          ...(dest.network ? ([["Network", dest.network]] as [string, string][]) : []),
+          ...(dest.address ? ([["Wallet address", dest.address]] as [string, string][]) : []),
+          ...(outcome === "FAILED"
+            ? ([
+                [
+                  "Result",
+                  `Rejected${w.rejectionReason ? `: ${w.rejectionReason}` : ""}. ${qty(w.amount.plus(w.fee))} ${w.assetCode} was returned to your balance.`,
+                ],
+              ] as [string, string][])
+            : []),
+        ],
+      };
+    }
+    return base;
+  });
+  const qLower = q.toLowerCase();
+  for (const d of uncredited) {
+    const row = depositRow(d);
+    if (qLower && ![row.description, d.reference, d.providerRef ?? ""].some((s) => s.toLowerCase().includes(qLower)))
+      continue;
+    historyRows.push(row);
+  }
+  historyRows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const params = new URLSearchParams(Object.entries({ type: type ?? "", q, from, to }).filter(([, v]) => v));
   const pageHref = (p: number) => `/history?${new URLSearchParams([...params, ["page", String(p)]])}`;
   const pager =

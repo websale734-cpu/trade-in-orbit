@@ -39,19 +39,31 @@ export const NETWORK_FEES: Record<string, { fee: string; network: string }> = {
   DOT: { fee: "0.1", network: "Polkadot" },
 };
 
-export const ARRIVAL: Record<PaymentMethod, string> = {
-  BANK: "1–3 business days",
-  CARD: "Instant to 30 minutes",
-  MOBILE_MONEY: "Within minutes",
-  CRYPTO: "About 30 minutes after network confirmations",
+/**
+ * The platform is crypto-only: there is no cash balance. Trades are priced and
+ * settled in this coin (buy BTC with USDT, sell BTC for USDT).
+ */
+export const QUOTE_ASSET = "USDT";
+
+/**
+ * Networks a coin is deposited and withdrawn on. Most coins have one; USDT has
+ * a separate wallet address per network. Admins set each address on the
+ * Deposit wallets page.
+ */
+export type CoinNetwork = { id: string; label: string };
+const MULTI_NETWORK: Record<string, CoinNetwork[]> = {
+  USDT: [
+    { id: "TRC20", label: "Tron (TRC20)" },
+    { id: "ERC20", label: "Ethereum (ERC20)" },
+  ],
 };
 
-export const WITHDRAWAL_ARRIVAL: Record<PaymentMethod, string> = {
-  BANK: "1–3 business days after approval",
-  CARD: "2–5 business days after approval",
-  MOBILE_MONEY: "Within an hour of approval",
-  CRYPTO: "Usually within an hour of approval",
-};
+export function coinNetworks(code: string): CoinNetwork[] {
+  return MULTI_NETWORK[code] ?? [{ id: "MAIN", label: NETWORK_FEES[code]?.network ?? code }];
+}
+
+export const DEPOSIT_ARRIVAL = "Credited after an admin confirms the funds arrived";
+export const WITHDRAWAL_ARRIVAL = "Usually within an hour of approval";
 
 /** Rolling 24-hour limits by KYC level, in USD value. Level 0 (unverified) can't move money. */
 export const KYC_LIMITS: Record<number, { depositDaily: number; withdrawDaily: number; minDeposit: number }> = {
@@ -59,5 +71,5 @@ export const KYC_LIMITS: Record<number, { depositDaily: number; withdrawDaily: n
   1: { depositDaily: 50_000, withdrawDaily: 25_000, minDeposit: 10 },
 };
 
-/** Virtual balance each user starts demo trading with. */
-export const DEMO_STARTING_USD = "10000";
+/** Virtual balance (in QUOTE_ASSET) each user starts demo trading with. */
+export const DEMO_STARTING_BALANCE = "10000";

@@ -6,6 +6,7 @@ import { Decimal, postEntry, systemLedgerAccount } from "./ledger";
 import { notify } from "./notify/notifications";
 import { getSettings } from "./settings";
 import { getLivePrice } from "@/lib/market/price";
+import { QUOTE_ASSET } from "@/config/funding";
 
 /**
  * Referrals, affiliate stats and loyalty tiers.
@@ -76,9 +77,9 @@ export async function maybeAwardReferral(refereeId: string) {
 
   try {
     await db.$transaction(async (tx) => {
-      const pool = await systemLedgerAccount(tx, "REWARDS", "USD", true);
-      const la1 = await tx.ledgerAccount.upsert({ where: { accountId_assetCode: { accountId: refAcct.id, assetCode: "USD" } }, update: {}, create: { accountId: refAcct.id, assetCode: "USD" } });
-      const la2 = await tx.ledgerAccount.upsert({ where: { accountId_assetCode: { accountId: refereeAcct.id, assetCode: "USD" } }, update: {}, create: { accountId: refereeAcct.id, assetCode: "USD" } });
+      const pool = await systemLedgerAccount(tx, "REWARDS", QUOTE_ASSET, true);
+      const la1 = await tx.ledgerAccount.upsert({ where: { accountId_assetCode: { accountId: refAcct.id, assetCode: QUOTE_ASSET } }, update: {}, create: { accountId: refAcct.id, assetCode: QUOTE_ASSET } });
+      const la2 = await tx.ledgerAccount.upsert({ where: { accountId_assetCode: { accountId: refereeAcct.id, assetCode: QUOTE_ASSET } }, update: {}, create: { accountId: refereeAcct.id, assetCode: QUOTE_ASSET } });
       const entry = await postEntry(tx, {
         type: "REWARD",
         description: "Referral bonus",
@@ -86,9 +87,9 @@ export async function maybeAwardReferral(refereeId: string) {
         idempotencyKey: `referral:${refereeId}`,
         metadata: { refereeId },
         postings: [
-          { ledgerAccountId: pool.id, assetCode: "USD", amount: a.plus(b).negated() },
-          { ledgerAccountId: la1.id, assetCode: "USD", amount: a },
-          { ledgerAccountId: la2.id, assetCode: "USD", amount: b },
+          { ledgerAccountId: pool.id, assetCode: QUOTE_ASSET, amount: a.plus(b).negated() },
+          { ledgerAccountId: la1.id, assetCode: QUOTE_ASSET, amount: a },
+          { ledgerAccountId: la2.id, assetCode: QUOTE_ASSET, amount: b },
         ],
       });
       await tx.referralReward.create({ data: { referrerId, refereeId, referrerAmount: a, refereeAmount: b, entryId: entry.id } });
@@ -97,8 +98,8 @@ export async function maybeAwardReferral(refereeId: string) {
     return; // already paid (unique constraint / idempotency key) or a transient failure; retried on the next deposit
   }
   await Promise.all([
-    notify(referrerId, { type: "ACCOUNT", title: "Referral bonus earned", body: `$${a} has been added to your account. Thanks for spreading the word!`, link: "/rewards" }),
-    b.gt(0) && notify(refereeId, { type: "ACCOUNT", title: "Welcome bonus", body: `$${b} has been added to your account.`, link: "/rewards" }),
+    notify(referrerId, { type: "ACCOUNT", title: "Referral bonus earned", body: `${a} ${QUOTE_ASSET} has been added to your account. Thanks for spreading the word!`, link: "/rewards" }),
+    b.gt(0) && notify(refereeId, { type: "ACCOUNT", title: "Welcome bonus", body: `${b} ${QUOTE_ASSET} has been added to your account.`, link: "/rewards" }),
   ]).catch(() => {});
 }
 

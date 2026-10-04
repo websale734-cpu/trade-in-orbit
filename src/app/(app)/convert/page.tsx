@@ -21,7 +21,7 @@ export default async function ConvertPage({ searchParams }: PageProps<"/convert"
     listAccounts(user.id),
     // Only assets the swap engine accepts right now (admins can close a coin's trading pair).
     db.asset.findMany({
-      where: { enabled: true, OR: [{ tradingEnabled: true }, { code: "USD" }] },
+      where: { enabled: true, tradingEnabled: true, type: "CRYPTO" },
       orderBy: { sortOrder: "asc" },
       select: { code: true, name: true, decimals: true },
     }),

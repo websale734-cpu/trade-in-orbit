@@ -77,7 +77,7 @@ export function OrderBook({ coins }: { coins: string[] }) {
         >
           {coins.map((c) => (
             <option key={c} value={c}>
-              {c}/USD
+              {c}/USDT
             </option>
           ))}
         </select>
@@ -90,7 +90,7 @@ export function OrderBook({ coins }: { coins: string[] }) {
         <table className="mt-4 w-full overflow-hidden text-xs sm:text-sm">
           <thead className="text-left text-xs tracking-wide text-subtle uppercase">
             <tr>
-              <th className="pb-2 pl-3 font-medium">Price (USD)</th>
+              <th className="pb-2 pl-3 font-medium">Price (USDT)</th>
               <th className="pb-2 text-right font-medium">Size ({asset})</th>
               <th className="pr-3 pb-2 text-right font-medium">Total</th>
             </tr>

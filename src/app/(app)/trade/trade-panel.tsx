@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { FormMessage, SubmitButton, inputClasses } from "@/components/ui/form";
 import { useMarket } from "@/components/market/market-provider";
 import { CoinIcon } from "@/components/market/coin-icon";
-import { cn, formatUsd } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { submitTrade, type TradeState } from "./actions";
 
 type Tab = "buy" | "sell" | "swap" | "limit";
@@ -24,12 +24,15 @@ export function TradePanel({
   accounts,
   coins,
   fees,
+  quote,
 }: {
   demo: boolean;
   initialTab: Tab;
   accounts: Acct[];
   coins: { code: string; name: string }[];
   fees: { instant: number; maker: number; taker: number };
+  /** The coin buys are paid in and sells settle to (there is no cash balance). */
+  quote: string;
 }) {
   const { tickers } = useMarket();
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -53,7 +56,12 @@ export function TradePanel({
 
   const acct = accounts.find((a) => a.id === accountId) ?? accounts[0];
   const bal = (code: string) => Number(acct?.balances[code] ?? 0);
-  const price = (code: string) => (code === "USD" ? 1 : (tickers.find((t) => t.symbol === code)?.priceUsd ?? 0));
+  const usdPrice = (code: string) => tickers.find((t) => t.symbol === code)?.priceUsd ?? 0;
+  // Prices are quoted in the quote coin (USDT), as the server prices them.
+  const qPrice = usdPrice(quote) || 1;
+  const price = (code: string) => (code === quote ? 1 : usdPrice(code) / qPrice);
+  const fmtQ = (v: number) =>
+    `${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${quote}`;
   const p = price(base);
   const n = Number(amount) || 0;
   const rate = (r: number) => r / 10_000;
@@ -63,17 +71,17 @@ export function TradePanel({
   if (tab === "buy") {
     const gross = n / (1 + rate(fees.instant));
     preview = [
-      { label: "Price", value: formatUsd(p) },
-      { label: `Fee (${fees.instant / 100}%)`, value: formatUsd(n - gross) },
+      { label: "Price", value: fmtQ(p) },
+      { label: `Fee (${fees.instant / 100}%)`, value: fmtQ(n - gross) },
       { label: "You receive", value: p ? `≈ ${(gross / p).toFixed(8)} ${base}` : "—" },
     ];
   } else if (tab === "sell") {
     const gross = n * p;
     const fee = gross * rate(fees.instant);
     preview = [
-      { label: "Price", value: formatUsd(p) },
-      { label: `Fee (${fees.instant / 100}%)`, value: formatUsd(fee) },
-      { label: "You receive", value: `≈ ${formatUsd(gross - fee)}` },
+      { label: "Price", value: fmtQ(p) },
+      { label: `Fee (${fees.instant / 100}%)`, value: fmtQ(fee) },
+      { label: "You receive", value: `≈ ${fmtQ(gross - fee)}` },
     ];
   } else if (tab === "swap") {
     const r = price(to) ? p / price(to) : 0;
@@ -87,17 +95,18 @@ export function TradePanel({
     const lp = Number(limitPrice) || 0;
     const notional = n * lp;
     preview = [
-      { label: "Market price", value: formatUsd(p) },
-      { label: `Maker fee (${fees.maker / 100}%)`, value: formatUsd(notional * rate(fees.maker)) },
+      { label: "Market price", value: fmtQ(p) },
+      { label: `Maker fee (${fees.maker / 100}%)`, value: fmtQ(notional * rate(fees.maker)) },
       {
-        label: limitSide === "BUY" ? "Reserved now" : "Reserved now",
-        value: limitSide === "BUY" ? formatUsd(notional * (1 + rate(fees.maker))) : `${n} ${base}`,
+        label: "Reserved now",
+        value: limitSide === "BUY" ? fmtQ(notional * (1 + rate(fees.maker))) : `${n} ${base}`,
       },
     ];
   }
 
-  const spendAsset = tab === "buy" || (tab === "limit" && limitSide === "BUY") ? "USD" : base;
-  const cryptoCoins = coins.filter((c) => c.code !== "USD");
+  const spendAsset = tab === "buy" || (tab === "limit" && limitSide === "BUY") ? quote : base;
+  // The quote coin can be swapped, but not bought or sold against itself.
+  const cryptoCoins = tab === "swap" ? coins : coins.filter((c) => c.code !== quote);
 
   return (
     <section
@@ -114,6 +123,7 @@ export function TradePanel({
             onClick={() => {
               setTab(t);
               setAmount("");
+              if (t !== "swap" && base === quote) setBase(coins.find((c) => c.code !== quote)?.code ?? "BTC");
             }}
             className={cn(
               "rounded-full py-2 text-sm font-semibold capitalize transition-colors",
@@ -235,7 +245,7 @@ export function TradePanel({
         <div className={cn("grid gap-4", tab === "limit" && "grid-cols-2")}>
           <div>
             <label htmlFor="amount" className="mb-1.5 block text-sm font-medium">
-              {tab === "buy" ? "Spend (USD)" : `Quantity (${base})`}
+              {tab === "buy" ? `Spend (${quote})` : `Quantity (${base})`}
             </label>
             <div className="relative">
               <input
@@ -262,7 +272,7 @@ export function TradePanel({
           {tab === "limit" && (
             <div>
               <label htmlFor="limitPrice" className="mb-1.5 block text-sm font-medium">
-                Limit price (USD)
+                Limit price ({quote})
               </label>
               <input
                 id="limitPrice"

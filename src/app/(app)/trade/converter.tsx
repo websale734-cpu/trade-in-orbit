@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
 import { inputClasses } from "@/components/ui/form";
 import { useMarket } from "@/components/market/market-provider";
-import { formatUsd } from "@/lib/utils";
 
 /** Coin converter (live prices) and fee calculator for each order type. */
 export function Converter({
@@ -18,10 +17,10 @@ export function Converter({
   const { tickers } = useMarket();
   const [amount, setAmount] = useState("1");
   const [from, setFrom] = useState("BTC");
-  const [to, setTo] = useState("USD");
+  const [to, setTo] = useState("USDT");
   const [feeAmount, setFeeAmount] = useState("1000");
-  const all = ["USD", ...coins];
-  const price = (c: string) => (c === "USD" ? 1 : (tickers.find((t) => t.symbol === c)?.priceUsd ?? 0));
+  const all = coins;
+  const price = (c: string) => tickers.find((t) => t.symbol === c)?.priceUsd ?? 0;
   const n = Number(amount) || 0;
   const converted = price(to) ? (n * price(from)) / price(to) : 0;
   const f = Number(feeAmount) || 0;
@@ -58,7 +57,7 @@ export function Converter({
           </button>
           <div className="space-y-2">
             <output className="tabular flex h-12 items-center rounded-xl border border-line bg-surface-strong px-4 font-semibold">
-              {converted ? converted.toLocaleString("en-US", { maximumFractionDigits: to === "USD" ? 2 : 8 }) : "—"}
+              {converted ? converted.toLocaleString("en-US", { maximumFractionDigits: to === "USDT" ? 2 : 8 }) : "—"}
             </output>
             <select aria-label="To" value={to} onChange={(e) => setTo(e.target.value)} className={inputClasses}>
               {all.map((c) => (
@@ -73,7 +72,7 @@ export function Converter({
       <section className="glass rounded-[var(--radius-card)] p-5 sm:p-6" aria-label="Fee calculator">
         <h2 className="font-semibold">Fee calculator</h2>
         <label className="mt-4 block text-sm font-medium" htmlFor="fee-amount">
-          Order value (USD)
+          Order value (USDT)
         </label>
         <input
           id="fee-amount"
@@ -93,7 +92,13 @@ export function Converter({
                 <td className="py-2 text-muted">
                   {label} · {(bps as number) / 100}%
                 </td>
-                <td className="tabular py-2 text-right font-medium">{formatUsd((f * (bps as number)) / 10_000)}</td>
+                <td className="tabular py-2 text-right font-medium">
+                  {((f * (bps as number)) / 10_000).toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  USDT
+                </td>
               </tr>
             ))}
           </tbody>

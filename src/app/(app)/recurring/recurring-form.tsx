@@ -33,10 +33,10 @@ export function RecurringForm({ coins, accounts, min }: { coins: string[]; accou
         </div>
       </div>
       <Field
-        label="Amount per purchase (USD)"
+        label="Amount per purchase (USDT)"
         name="amountUsd"
         inputMode="decimal"
-        hint={`Minimum $${min}. Includes the instant-trade fee.`}
+        hint={`Minimum ${min} USDT, paid from your USDT balance. Includes the instant-trade fee.`}
         defaultValue={v?.amountUsd}
         error={state?.fieldErrors?.amountUsd}
       />

@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "./db";
 import { Decimal, LedgerError, mapLedgerError, postEntry, systemLedgerAccount } from "./ledger";
 import { getLivePrice } from "@/lib/market/price";
-import { DEMO_STARTING_USD, MAX_SLIPPAGE_BPS } from "@/config/funding";
+import { DEMO_STARTING_BALANCE, MAX_SLIPPAGE_BPS, QUOTE_ASSET as QUOTE } from "@/config/funding";
 import { getSettings } from "./settings";
 import { feeDiscountPct } from "./rewards";
 import { Prisma, type Account, type OrderSide } from "@/generated/prisma/client";
@@ -29,6 +29,9 @@ export const userTradeFees = tradeFees;
  * in the ledger; treasury rebalances it off-platform). Every trade is one
  * balanced journal entry: the user's two legs, the broker's two legs and the fee.
  *
+ * There is no cash balance: buys are paid and sells are settled in the quote
+ * coin (USDT), at the coin's live USD price divided by USDT's.
+ *
  * Demo trades use the same engine against separate DEMO_* system accounts and
  * a DEMO account, so virtual money can never mix with real money.
  */
@@ -46,11 +49,22 @@ const sys = (demo: boolean) => ({
 
 /** An asset that can be traded now (admins can close a coin's trading pair). */
 async function assetInfo(code: string) {
-  const a = await db.asset.findFirst({
-    where: { code, enabled: true, ...(code === "USD" ? {} : { tradingEnabled: true }) },
-  });
+  const a = await db.asset.findFirst({ where: { code, enabled: true, tradingEnabled: true, type: "CRYPTO" } });
   if (!a) throw new LedgerError(`Trading in ${code} is currently unavailable.`, "NOT_FOUND");
   return a;
+}
+
+/** The coin buys are paid in and sells settle to. */
+async function quoteInfo() {
+  const a = await db.asset.findFirst({ where: { code: QUOTE, enabled: true } });
+  if (!a) throw new LedgerError("Trading is currently unavailable.", "NOT_FOUND");
+  return a;
+}
+
+/** Live price of a coin in the quote coin. */
+async function quotePrice(code: string) {
+  const [p, q] = await Promise.all([getLivePrice(code), getLivePrice(QUOTE)]);
+  return p.div(q).toDecimalPlaces(8, Prisma.Decimal.ROUND_HALF_UP);
 }
 
 const bps = (n: number) => new Decimal(n).div(10_000);
@@ -75,14 +89,14 @@ export async function tradingAccount(userId: string, accountId: string | null, d
   return acct;
 }
 
-/** Create (once) and fund the user's demo account with virtual USD. */
+/** Create (once) and fund the user's demo account with virtual USDT. */
 export async function ensureDemoAccount(userId: string): Promise<Account> {
   const existing = await db.account.findFirst({ where: { userId, type: "DEMO" } });
   if (existing) return existing;
   return db.$transaction(async (tx) => {
     const acct = await tx.account.create({ data: { userId, name: "Demo", type: "DEMO" } });
-    const faucet = await systemLedgerAccount(tx, "DEMO_FAUCET", "USD", true);
-    const la = await tx.ledgerAccount.create({ data: { accountId: acct.id, assetCode: "USD" } });
+    const faucet = await systemLedgerAccount(tx, "DEMO_FAUCET", QUOTE, true);
+    const la = await tx.ledgerAccount.create({ data: { accountId: acct.id, assetCode: QUOTE } });
     await postEntry(tx, {
       type: "DEV_SEED",
       description: "Demo trading: virtual starting balance",
@@ -90,8 +104,8 @@ export async function ensureDemoAccount(userId: string): Promise<Account> {
       idempotencyKey: `demo-funding:${userId}`,
       metadata: { demo: true },
       postings: [
-        { ledgerAccountId: faucet.id, assetCode: "USD", amount: new Decimal(DEMO_STARTING_USD).negated() },
-        { ledgerAccountId: la.id, assetCode: "USD", amount: new Decimal(DEMO_STARTING_USD) },
+        { ledgerAccountId: faucet.id, assetCode: QUOTE, amount: new Decimal(DEMO_STARTING_BALANCE).negated() },
+        { ledgerAccountId: la.id, assetCode: QUOTE, amount: new Decimal(DEMO_STARTING_BALANCE) },
       ],
     });
     return acct;
@@ -116,17 +130,17 @@ export type MarketOrderInput = {
   demo: boolean;
   side: OrderSide;
   base: string;
-  /** BUY: USD to spend (fee included). SELL: quantity of the base asset. */
+  /** BUY: USDT to spend (fee included). SELL: quantity of the base asset. */
   amount: string;
   expectedPrice?: string;
   idempotencyKey: string;
 };
 
 export async function executeMarketOrder(input: MarketOrderInput) {
-  if (input.base === "USD") throw new LedgerError("Choose a crypto asset.", "INVALID");
-  const [asset, usd] = await Promise.all([assetInfo(input.base), assetInfo("USD")]);
+  if (input.base === QUOTE) throw new LedgerError(`Choose a coin other than ${QUOTE}.`, "INVALID");
+  const [asset, usd] = await Promise.all([assetInfo(input.base), quoteInfo()]);
   const account = await tradingAccount(input.userId, input.accountId, input.demo);
-  const price = await getLivePrice(asset.code);
+  const price = await quotePrice(asset.code);
   checkSlippage(input.side, input.expectedPrice, price);
   const feeRate = bps((await tradeFees(input.userId, input.demo)).instant);
 
@@ -136,7 +150,7 @@ export async function executeMarketOrder(input: MarketOrderInput) {
 
   let qty: Decimal, gross: Decimal, fee: Decimal, userUsd: Decimal;
   if (input.side === "BUY") {
-    // Spend `amount` USD in total: fee on top of the notional.
+    // Spend `amount` USDT in total: fee on top of the notional.
     const spend = amount.toDecimalPlaces(usd.decimals, ROUND_DOWN);
     gross = spend.div(feeRate.plus(1)).toDecimalPlaces(usd.decimals, ROUND_DOWN);
     fee = spend.minus(gross);
@@ -155,23 +169,23 @@ export async function executeMarketOrder(input: MarketOrderInput) {
   try {
     return await db.$transaction(async (tx) => {
       const uBase = await la(tx, account.id, asset.code);
-      const uUsd = await la(tx, account.id, "USD");
+      const uUsd = await la(tx, account.id, QUOTE);
       const bBase = await systemLedgerAccount(tx, s.broker, asset.code, true);
-      const bUsd = await systemLedgerAccount(tx, s.broker, "USD", true);
-      const fees = await systemLedgerAccount(tx, s.fees, "USD");
+      const bUsd = await systemLedgerAccount(tx, s.broker, QUOTE, true);
+      const fees = await systemLedgerAccount(tx, s.fees, QUOTE);
       const sign = input.side === "BUY" ? 1 : -1;
       const entry = await postEntry(tx, {
         type: "TRADE",
-        description: `${input.side === "BUY" ? "Bought" : "Sold"} ${qty} ${asset.code} @ ${price.toFixed(2)} USD`,
+        description: `${input.side === "BUY" ? "Bought" : "Sold"} ${qty} ${asset.code} @ ${price.toFixed(2)} ${QUOTE}`,
         userId: input.userId,
         idempotencyKey: `trade:${input.userId}:${input.idempotencyKey}`,
-        metadata: { side: input.side, price: price.toString(), fee: fee.toString(), demo: input.demo },
+        metadata: { side: input.side, price: price.toString(), quote: QUOTE, fee: fee.toString(), demo: input.demo },
         postings: [
           { ledgerAccountId: uBase.id, assetCode: asset.code, amount: qty.mul(sign) },
           { ledgerAccountId: bBase.id, assetCode: asset.code, amount: qty.mul(-sign) },
-          { ledgerAccountId: uUsd.id, assetCode: "USD", amount: userUsd },
-          { ledgerAccountId: bUsd.id, assetCode: "USD", amount: gross.mul(sign) },
-          { ledgerAccountId: fees.id, assetCode: "USD", amount: fee },
+          { ledgerAccountId: uUsd.id, assetCode: QUOTE, amount: userUsd },
+          { ledgerAccountId: bUsd.id, assetCode: QUOTE, amount: gross.mul(sign) },
+          { ledgerAccountId: fees.id, assetCode: QUOTE, amount: fee },
         ],
       });
       const order = await tx.order.create({
@@ -282,7 +296,8 @@ export async function placeLimitOrder(input: {
   /** Makes retried submissions (e.g. API clients) safe: a repeat is rejected as a duplicate. */
   idempotencyKey?: string;
 }) {
-  const [asset, usd] = await Promise.all([assetInfo(input.base), assetInfo("USD")]);
+  if (input.base === QUOTE) throw new LedgerError(`Choose a coin other than ${QUOTE}.`, "INVALID");
+  const [asset, usd] = await Promise.all([assetInfo(input.base), quoteInfo()]);
   const account = await tradingAccount(input.userId, input.accountId, input.demo);
   const qty = new Decimal(input.quantity).toDecimalPlaces(asset.decimals, ROUND_DOWN);
   const limit = new Decimal(input.limitPrice).toDecimalPlaces(8, ROUND_DOWN);
@@ -291,7 +306,7 @@ export async function placeLimitOrder(input: {
 
   const notional = qty.mul(limit).toDecimalPlaces(usd.decimals, ROUND_UP);
   const maxFee = notional.mul(bps((await tradeFees(input.userId, input.demo)).maker)).toDecimalPlaces(usd.decimals, ROUND_UP);
-  const holdAsset = input.side === "BUY" ? "USD" : asset.code;
+  const holdAsset = input.side === "BUY" ? QUOTE : asset.code;
   const hold = input.side === "BUY" ? notional.plus(maxFee) : qty;
   const s = sys(input.demo);
 
@@ -301,7 +316,7 @@ export async function placeLimitOrder(input: {
       const escrow = await systemLedgerAccount(tx, s.escrow, holdAsset);
       const entry = await postEntry(tx, {
         type: "TRADE",
-        description: `Limit ${input.side.toLowerCase()} ${qty} ${asset.code} @ ${limit} USD placed (funds reserved)`,
+        description: `Limit ${input.side.toLowerCase()} ${qty} ${asset.code} @ ${limit} ${QUOTE} placed (funds reserved)`,
         userId: input.userId,
         metadata: { limitOrder: true, demo: input.demo },
         idempotencyKey: input.idempotencyKey ? `limit:${input.userId}:${input.idempotencyKey}` : undefined,
@@ -333,7 +348,7 @@ export async function placeLimitOrder(input: {
 export async function cancelOrder(userId: string, orderId: string) {
   const order = await db.order.findFirst({ where: { id: orderId, userId, status: "OPEN", type: "LIMIT" } });
   if (!order) throw new LedgerError("Order not found or already closed.", "NOT_FOUND");
-  const holdAsset = order.side === "BUY" ? "USD" : order.baseAsset;
+  const holdAsset = order.side === "BUY" ? QUOTE : order.baseAsset;
   const s = sys(order.demo);
   await db.$transaction(async (tx) => {
     // Claim the order first so a concurrent fill/cancel can't also release escrow.
@@ -368,7 +383,7 @@ export async function matchOpenOrders(filter: { userId?: string } = {}): Promise
   for (const order of open) {
     let price: Decimal;
     try {
-      price = await getLivePrice(order.baseAsset);
+      price = await quotePrice(order.baseAsset);
     } catch {
       continue;
     }
@@ -386,33 +401,33 @@ export async function matchOpenOrders(filter: { userId?: string } = {}): Promise
 }
 
 async function settleLimit(orderId: string, fillPrice: Decimal) {
+  const usdDecimals = (await quoteInfo()).decimals;
   await db.$transaction(async (tx) => {
     const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
     const claimed = await tx.order.updateMany({ where: { id: orderId, status: "OPEN" }, data: { status: "FILLED" } });
     if (claimed.count !== 1) return; // someone else settled or cancelled it
 
     const s = sys(order.demo);
-    const usdDecimals = 2;
     const gross = order.quantity.mul(fillPrice).toDecimalPlaces(usdDecimals, ROUND_DOWN);
     // Never charge more than was reserved at placement (the user's tier may have changed since).
     const computedFee = gross.mul(bps((await tradeFees(order.userId, order.demo)).maker)).toDecimalPlaces(usdDecimals, ROUND_UP);
     const reservedFee = order.side === "BUY" ? order.escrow!.minus(gross) : computedFee;
     const fee = Decimal.min(computedFee, Decimal.max(reservedFee, new Decimal(0)));
     const uBase = await la(tx, order.accountId, order.baseAsset);
-    const uUsd = await la(tx, order.accountId, "USD");
+    const uUsd = await la(tx, order.accountId, QUOTE);
     const bBase = await systemLedgerAccount(tx, s.broker, order.baseAsset, true);
-    const bUsd = await systemLedgerAccount(tx, s.broker, "USD", true);
-    const fees = await systemLedgerAccount(tx, s.fees, "USD");
+    const bUsd = await systemLedgerAccount(tx, s.broker, QUOTE, true);
+    const fees = await systemLedgerAccount(tx, s.fees, QUOTE);
 
     let postings;
     if (order.side === "BUY") {
-      const escrow = await systemLedgerAccount(tx, s.escrow, "USD");
+      const escrow = await systemLedgerAccount(tx, s.escrow, QUOTE);
       const refund = order.escrow!.minus(gross).minus(fee); // unused part of the reserved fee
       postings = [
-        { ledgerAccountId: escrow.id, assetCode: "USD", amount: order.escrow!.negated() },
-        { ledgerAccountId: bUsd.id, assetCode: "USD", amount: gross },
-        { ledgerAccountId: fees.id, assetCode: "USD", amount: fee },
-        ...(refund.gt(0) ? [{ ledgerAccountId: uUsd.id, assetCode: "USD", amount: refund }] : []),
+        { ledgerAccountId: escrow.id, assetCode: QUOTE, amount: order.escrow!.negated() },
+        { ledgerAccountId: bUsd.id, assetCode: QUOTE, amount: gross },
+        { ledgerAccountId: fees.id, assetCode: QUOTE, amount: fee },
+        ...(refund.gt(0) ? [{ ledgerAccountId: uUsd.id, assetCode: QUOTE, amount: refund }] : []),
         { ledgerAccountId: bBase.id, assetCode: order.baseAsset, amount: order.quantity.negated() },
         { ledgerAccountId: uBase.id, assetCode: order.baseAsset, amount: order.quantity },
       ];
@@ -421,14 +436,14 @@ async function settleLimit(orderId: string, fillPrice: Decimal) {
       postings = [
         { ledgerAccountId: escrow.id, assetCode: order.baseAsset, amount: order.quantity.negated() },
         { ledgerAccountId: bBase.id, assetCode: order.baseAsset, amount: order.quantity },
-        { ledgerAccountId: bUsd.id, assetCode: "USD", amount: gross.negated() },
-        { ledgerAccountId: uUsd.id, assetCode: "USD", amount: gross.minus(fee) },
-        { ledgerAccountId: fees.id, assetCode: "USD", amount: fee },
+        { ledgerAccountId: bUsd.id, assetCode: QUOTE, amount: gross.negated() },
+        { ledgerAccountId: uUsd.id, assetCode: QUOTE, amount: gross.minus(fee) },
+        { ledgerAccountId: fees.id, assetCode: QUOTE, amount: fee },
       ];
     }
     const entry = await postEntry(tx, {
       type: "TRADE",
-      description: `Limit ${order.side.toLowerCase()} filled: ${order.quantity} ${order.baseAsset} @ ${fillPrice} USD`,
+      description: `Limit ${order.side.toLowerCase()} filled: ${order.quantity} ${order.baseAsset} @ ${fillPrice} ${QUOTE}`,
       userId: order.userId,
       metadata: { orderId: order.id, fill: true, demo: order.demo },
       postings,

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronDown, Inbox } from "lucide-react";
 import { LocalTime } from "@/components/ui/local-time";
 import { EmptyState } from "@/components/app/ui";
+import { StatusBadge, type Outcome } from "@/components/app/status-badge";
 import { cn } from "@/lib/utils";
 
 export type HistoryRow = {
@@ -15,6 +16,10 @@ export type HistoryRow = {
   createdAt: string;
   accounts: string[];
   changes: { asset: string; amount: number }[];
+  /** Deposits and withdrawals: the same status the Deposit and Withdraw tabs show. */
+  status?: Outcome;
+  /** Extra detail lines (network, wallet address, reason...). */
+  details?: [string, string][];
 };
 
 const qty = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 8 });
@@ -26,11 +31,13 @@ function direction(row: HistoryRow): "in" | "out" | "move" {
 }
 
 function AmountLines({ row, className }: { row: HistoryRow; className?: string }) {
+  // Not (or no longer) affecting the balance: a pending deposit, or anything that failed.
+  const inert = row.status === "FAILED" || (row.status === "PENDING" && row.type === "DEPOSIT");
   return (
-    <span className={cn("tabular block font-semibold", className)}>
+    <span className={cn("tabular block font-semibold", inert && "text-muted", className)}>
       {row.changes.map((c) => (
-        <span key={c.asset} className={cn("block", row.type !== "TRANSFER" && c.amount >= 0 && "text-up")}>
-          {row.type === "TRANSFER" ? "" : c.amount >= 0 ? "+" : "−"}
+        <span key={c.asset} className={cn("block", !inert && row.type !== "TRANSFER" && c.amount >= 0 && "text-up")}>
+          {row.type === "TRANSFER" || row.status === "FAILED" ? "" : c.amount >= 0 ? "+" : "−"}
           {qty(Math.abs(c.amount))} {c.asset}
         </span>
       ))}
@@ -70,7 +77,10 @@ export function HistoryList({ rows }: { rows: HistoryRow[] }) {
                 <Icon className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold">{e.label}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-semibold">{e.label}</span>
+                  {e.status && <StatusBadge outcome={e.status} className="shrink-0" />}
+                </span>
                 <span className="block truncate text-xs text-muted sm:text-sm">{e.description}</span>
               </span>
               <span className="shrink-0 text-right">
@@ -90,8 +100,24 @@ export function HistoryList({ rows }: { rows: HistoryRow[] }) {
                 <dt className="text-muted">Type</dt>
                 <dd className="font-medium">{e.label}</dd>
 
+                {e.status && (
+                  <>
+                    <dt className="text-muted">Status</dt>
+                    <dd>
+                      <StatusBadge outcome={e.status} />
+                    </dd>
+                  </>
+                )}
+
                 <dt className="text-muted">Description</dt>
                 <dd className="break-words">{e.description || "—"}</dd>
+
+                {e.details?.map(([k, v]) => (
+                  <Fragment key={k}>
+                    <dt className="text-muted">{k}</dt>
+                    <dd className="break-all">{v}</dd>
+                  </Fragment>
+                ))}
 
                 {e.accounts.length > 0 && (
                   <>

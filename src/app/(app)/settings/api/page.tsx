@@ -130,7 +130,7 @@ export default async function ApiKeysPage() {
   "limitPrice": "4200", "clientOrderId": "<uuid>" }`}
           </pre>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            Market BUY amount is USD to spend (fee included); market SELL amount is the coin quantity.
+            Market BUY amount is USDT to spend (fee included); market SELL amount is the coin quantity.
           </p>
         </Panel>
       </div>

@@ -50,7 +50,7 @@ function contentSecurityPolicy(nonce: string) {
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self' https://checkout.stripe.com",
+    "form-action 'self'",
     ...(dev ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");
 }

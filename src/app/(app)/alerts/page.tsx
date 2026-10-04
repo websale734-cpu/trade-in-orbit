@@ -19,7 +19,7 @@ export default async function AlertsPage() {
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       take: 50,
     }),
-    db.asset.findMany({ where: { enabled: true, tradingEnabled: true, NOT: { code: "USD" } }, select: { code: true } }),
+    db.asset.findMany({ where: { enabled: true, tradingEnabled: true, type: "CRYPTO" }, select: { code: true } }),
   ]);
   const open = new Set(tradable.map((a) => a.code));
   const coins = trackedCoins.filter((c) => open.has(c.symbol)).map((c) => c.symbol);

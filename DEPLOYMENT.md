@@ -28,8 +28,6 @@ Set these in Vercel → Project → Settings → Environment Variables (Producti
 | Always | `NEXT_PUBLIC_APP_URL` (your https domain), `DATABASE_URL` (pooled), `DATABASE_URL_UNPOOLED` (direct), `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`, `CRON_SECRET` |
 | Email | `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` (or `sendgrid` + `SENDGRID_API_KEY`), `EMAIL_FROM` (a verified sender) |
 | SMS (optional) | `SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`. Leave `SMS_PROVIDER` unset (or `none`) to launch without SMS: onboarding then skips phone verification. Turning SMS on later sends existing users without a verified phone to that step on their next visit. |
-| Card deposits | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` |
-| Bank deposits | `BANK_ACCOUNT_NAME`, `BANK_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_ROUTING` |
 | Push (optional) | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`npx web-push generate-vapid-keys`) |
 | Optional | `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_SUPPORT_PHONE`, `COINGECKO_API_KEY` (+ `COINGECKO_API_PLAN`, `COINGECKO_API_BASE`), `SESSION_IDLE_MINUTES`, `SESSION_MAX_HOURS` |
 
@@ -60,7 +58,6 @@ The app validates its server environment at runtime and refuses to serve pages w
 
 ## 4. Providers
 
-- **Stripe (card deposits).** Create a webhook endpoint at `https://<domain>/api/webhooks/stripe` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` and `checkout.session.expired`, and put its signing secret in `STRIPE_WEBHOOK_SECRET`.
 - **Resend / SendGrid.** Verify your sending domain (SPF, DKIM, DMARC) and use it in `EMAIL_FROM`.
 - **Twilio Verify.** Create a Verify service and enable the SMS channel. Consider geo-permissions to block high-fraud regions.
 - **Bank, crypto and mobile-money rails.** Until contracted providers are wired into `src/server/funding.ts`, those methods run in sandbox mode, which production refuses. Connect real providers (and a custody partner for crypto addresses) before enabling them.
@@ -98,7 +95,7 @@ The app validates its server environment at runtime and refuses to serve pages w
 - [ ] About page company details, registration and licence numbers filled in.
 - [ ] Custody and liquidity partners contracted; real deposit and withdrawal rails connected; sandbox flows confirmed disabled.
 - [ ] Email and SMS providers live with verified sender domains.
-- [ ] Stripe live keys and webhook configured.
+- [ ] Deposit wallet addresses set in Admin → Deposit wallets (one per coin; USDT on TRC20 and ERC20).
 - [ ] All secrets set, different from development, with `DATA_ENCRYPTION_KEY` backed up.
 - [ ] Migrations applied to production with `npm run db:deploy`. No seed data in production.
 - [ ] Cron running every minute (check the response of `/api/cron/process` in logs).

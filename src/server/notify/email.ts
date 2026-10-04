@@ -65,14 +65,17 @@ function parseAddress(value: string): { email: string; name?: string } {
 // Templates. Plain, inline-styled HTML that renders in every mail client.
 // ---------------------------------------------------------------------------
 
-function layout(title: string, body: string): string {
+const DEFAULT_FOOTER =
+  "If you didn't request this, you can ignore this email. Trade In Orbit will never ask for your password or codes by phone, email or chat.";
+
+function layout(title: string, body: string, footer = DEFAULT_FOOTER): string {
   return `<!doctype html><html><body style="margin:0;background:#07070c;font-family:Inter,Segoe UI,Arial,sans-serif;color:#ededf5">
 <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#0d0d15;border:1px solid #23232f;border-radius:16px;padding:32px">
 <tr><td style="font-size:20px;font-weight:600;padding-bottom:24px"><span style="color:#a78bfa">●</span> Trade In Orbit</td></tr>
 <tr><td style="font-size:18px;font-weight:600;padding-bottom:12px">${title}</td></tr>
 <tr><td style="font-size:14px;line-height:1.6;color:#b5b5c9">${body}</td></tr>
-<tr><td style="font-size:12px;color:#6b6b85;padding-top:28px">If you didn't request this, you can ignore this email. Trade In Orbit will never ask for your password or codes by phone, email or chat.</td></tr>
+<tr><td style="font-size:12px;color:#6b6b85;padding-top:28px">${footer}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -124,6 +127,33 @@ export function simpleNoticeEmail(to: string, subject: string, body: string, lin
     subject,
     text: `${body}\n\n${linkLabel}: ${siteConfig.url}${linkPath}`,
     html: layout(esc(subject), `${esc(body)}<br><br><a style="color:#a78bfa" href="${siteConfig.url}${esc(linkPath)}">${esc(linkLabel)}</a>`),
+  };
+}
+
+/**
+ * An admin decision on the customer's deposit, withdrawal or verification:
+ * a heading, a sentence, a small details table (amount, coin, status) and a link.
+ */
+export function decisionEmail(
+  to: string,
+  msg: { subject: string; body: string; details: [string, string][]; linkPath: string; linkLabel: string },
+): EmailMessage {
+  const rows = msg.details
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:6px 0;color:#8a8aa3">${esc(k)}</td><td style="padding:6px 0;text-align:right;color:#ededf5;font-weight:600">${esc(v)}</td></tr>`,
+    )
+    .join("");
+  const url = `${siteConfig.url}${msg.linkPath}`;
+  return {
+    to,
+    subject: msg.subject,
+    text: `${msg.body}\n\n${msg.details.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n${msg.linkLabel}: ${url}`,
+    html: layout(
+      esc(msg.subject),
+      `${esc(msg.body)}${rows ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;padding:8px 16px;background:#15151f;border-radius:12px;font-size:14px">${rows}</table>` : "<br><br>"}<a style="color:#a78bfa" href="${esc(url)}">${esc(msg.linkLabel)}</a>`,
+      "Questions about this? Reply from the Support page in the app. Trade In Orbit will never ask for your password or codes by phone, email or chat.",
+    ),
   };
 }
 

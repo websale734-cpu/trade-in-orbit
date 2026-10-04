@@ -51,14 +51,26 @@ async function balancesAt(userId: string, before: Date) {
   return rows.filter((r) => Number(r.total) !== 0);
 }
 
-/** Journal entries touching the user's real accounts, with their net effect per asset. */
-export async function userEntries(userId: string, where: { from?: Date; to?: Date; type?: string; q?: string } = {}, take = 500, skip = 0) {
+/**
+ * Journal entries touching the user's real accounts, with their net effect per asset.
+ * `customerView` leaves out the entry that returns a rejected withdrawal's funds:
+ * the History tab shows that withdrawal once, as Failed, like the Withdraw tab.
+ */
+export async function userEntries(
+  userId: string,
+  where: { from?: Date; to?: Date; type?: string; q?: string; customerView?: boolean } = {},
+  take = 500,
+  skip = 0,
+) {
   const entries = await db.journalEntry.findMany({
     where: {
       userId,
       createdAt: { gte: where.from, lt: where.to },
       ...(where.type ? { type: where.type as never } : {}),
       ...(where.q ? { description: { contains: where.q, mode: "insensitive" } } : {}),
+      ...(where.customerView
+        ? { OR: [{ idempotencyKey: null }, { NOT: { idempotencyKey: { startsWith: "withdrawal-reject:" } } }] }
+        : {}),
       postings: { some: { ledgerAccount: { account: { userId, type: { not: "DEMO" } } } } },
     },
     orderBy: { createdAt: "desc" },

@@ -55,32 +55,19 @@ export async function sendWithdrawalCode(): Promise<FormState> {
   return { error: r.error };
 }
 
-const FIELDS = [
-  "method",
-  "accountId",
-  "assetCode",
-  "amount",
-  "holder",
-  "bankName",
-  "account",
-  "provider",
-  "phone",
-  "last4",
-  "address",
-  "scheduledFor",
-];
+const FIELDS = ["accountId", "assetCode", "networkId", "amount", "address", "scheduledFor"];
 
 const base = z.object({
-  method: z.enum(["BANK", "CARD", "MOBILE_MONEY", "CRYPTO"]),
   accountId: z.string().min(1),
-  assetCode: z.string().regex(/^[A-Z]{2,6}$/),
+  assetCode: z.string().regex(/^[A-Z0-9]{2,10}$/, "Choose a coin."),
+  networkId: z.string().optional(),
   amount: z.string().regex(/^\d+(\.\d+)?$/, "Enter a valid amount."),
   scheduledFor: z.string().optional(),
 });
 
 /**
- * Read the form fields. Destination details are taken exactly as typed, even
- * blank or invalid: the admin reviews them before approving. Returns the
+ * Read the form fields. The wallet address is taken exactly as typed, even
+ * blank or invalid: the admin reviews it before approving. Returns the
  * request, or an error to show.
  */
 function parseRequest(fd: FormData) {
@@ -91,48 +78,18 @@ function parseRequest(fd: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const d = parsed.data;
 
-  let destination: Destination;
-  const s = (k: string) => values[k];
-  if (d.method === "BANK") {
-    destination = {
-      kind: "BANK",
-      holder: s("holder"),
-      bankName: s("bankName"),
-      account: s("account").replace(/\s/g, ""),
-    };
-  } else if (d.method === "MOBILE_MONEY") {
-    destination = { kind: "MOBILE_MONEY", provider: s("provider"), phone: s("phone").replace(/[\s-]/g, "") };
-  } else if (d.method === "CARD") {
-    destination = { kind: "CARD", last4: s("last4") };
-  } else {
-    destination = { kind: "CRYPTO", address: s("address") };
-  }
-
   // An unreadable date just means "not scheduled".
   const date = d.scheduledFor ? new Date(`${d.scheduledFor}T09:00:00Z`) : null;
   const scheduledFor = date && !Number.isNaN(date.getTime()) ? date : null;
 
-  return { request: { ...d, destination, scheduledFor }, values };
+  return { request: { ...d, networkId: d.networkId || undefined, address: values.address, scheduledFor }, values };
 }
 
 function describe(d: Destination): [string, string][] {
-  switch (d.kind) {
-    case "BANK":
-      return [
-        ["Account holder", d.holder],
-        ["Bank", d.bankName],
-        ["Account number / IBAN", d.account],
-      ];
-    case "MOBILE_MONEY":
-      return [
-        ["Provider", d.provider],
-        ["Mobile number", d.phone],
-      ];
-    case "CARD":
-      return [["Card", d.last4 ? `Ending in ${d.last4}` : ""]];
-    case "CRYPTO":
-      return [["Wallet address", d.address]];
-  }
+  return [
+    ["Network", d.network],
+    ["Wallet address", d.address],
+  ];
 }
 
 /** Step 1: check the details and show the confirmation screen. Nothing is held yet. */
@@ -152,7 +109,7 @@ export async function reviewWithdrawal(_prev: ReviewState | undefined, fd: FormD
         amount: r.amount.toString(),
         fee: r.fee.toString(),
         total: r.total.toString(),
-        destination: describe(p.request.destination),
+        destination: describe(r.destination),
         scheduledFor: r.scheduled?.toISOString() ?? null,
       },
     };
@@ -179,8 +136,8 @@ export async function submitWithdrawal(_prev: WithdrawState | undefined, fd: For
     revalidatePath("/dashboard");
     return {
       message: p.request.scheduledFor
-        ? "Withdrawal scheduled. Funds are reserved until then, and it will then wait for approval."
-        : "Withdrawal requested. It's pending approval, and the amount is held from your balance.",
+        ? "Status: Pending. The amount has been deducted from your balance, and the withdrawal goes for approval on the date you chose."
+        : "Status: Pending. The amount has been deducted from your balance until the withdrawal is approved.",
       done: w!.id,
     };
   } catch (err) {

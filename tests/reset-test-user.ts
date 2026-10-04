@@ -22,7 +22,7 @@ async function main() {
   const { count } = await db.rateLimit.deleteMany({ where: { key: { contains: user.id } } });
   const open = await db.order.findMany({ where: { userId: user.id, status: "OPEN" } });
   for (const o of open) {
-    const hold = o.side === "BUY" ? "USD" : o.baseAsset;
+    const hold = o.side === "BUY" ? "USDT" : o.baseAsset;
     await db.$transaction(async (tx) => {
       await tx.order.update({ where: { id: o.id }, data: { status: "CANCELLED", cancelledAt: new Date() } });
       const escrow = await tx.ledgerAccount.findUniqueOrThrow({

@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { ensureDefaultAccount } from "@/server/ledger";
 import { ensureDemoAccount, matchOpenOrders, userTradeFees } from "@/server/trading";
 import { trackedCoins } from "@/config/coins";
+import { QUOTE_ASSET } from "@/config/funding";
 import { EmptyState, PageHeader, PageStack, Panel, segmentedItem, segmentedWrap } from "@/components/app/ui";
 import { cn } from "@/lib/utils";
 import { cancelLimitOrder } from "./actions";
@@ -38,7 +39,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
     db.order.findMany({ where: { userId: user.id, demo, status: "OPEN" }, orderBy: { createdAt: "desc" } }),
     db.order.findMany({ where: { userId: user.id, demo, status: "FILLED" }, orderBy: { filledAt: "desc" }, take: 10 }),
     userTradeFees(user.id, demo),
-    db.asset.findMany({ where: { enabled: true, tradingEnabled: true }, select: { code: true } }),
+    db.asset.findMany({ where: { enabled: true, tradingEnabled: true, type: "CRYPTO" }, select: { code: true } }),
   ]);
 
   const accountData = accounts.map((a) => ({
@@ -120,6 +121,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
             accounts={accountData}
             coins={coins}
             fees={fees}
+            quote={QUOTE_ASSET}
           />
         </div>
         <div className="min-w-0">
@@ -144,7 +146,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
                       {Number(o.quantity)} {o.baseAsset}
                     </span>
                     <span className="tabular block text-xs text-muted sm:text-sm">
-                      at ${Number(o.limitPrice).toLocaleString("en-US")}
+                      at {Number(o.limitPrice).toLocaleString("en-US")} {QUOTE_ASSET}
                     </span>
                   </span>
                   <form action={cancelLimitOrder}>
@@ -175,7 +177,7 @@ export default async function TradePage({ searchParams }: PageProps<"/trade">) {
                       {Number(o.quantity)} {o.baseAsset}
                     </span>
                     <span className="tabular block text-xs text-muted sm:text-sm">
-                      at ${Number(o.fillPrice).toLocaleString("en-US", { maximumFractionDigits: 4 })} ·{" "}
+                      at {Number(o.fillPrice).toLocaleString("en-US", { maximumFractionDigits: 4 })} {QUOTE_ASSET} ·{" "}
                       {o.type === "LIMIT" ? "limit" : "market"}
                     </span>
                   </span>

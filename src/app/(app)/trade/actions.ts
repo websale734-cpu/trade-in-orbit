@@ -6,6 +6,7 @@ import { requireUser } from "@/server/auth/dal";
 import { LedgerError } from "@/server/ledger";
 import { cancelOrder, executeMarketOrder, executeSwap, placeLimitOrder } from "@/server/trading";
 import { PriceUnavailableError } from "@/lib/market/price";
+import { QUOTE_ASSET } from "@/config/funding";
 import type { FormState } from "@/components/ui/form";
 
 export type TradeState = FormState & { done?: string };
@@ -44,7 +45,9 @@ export async function marketOrder(_prev: TradeState | undefined, fd: FormData): 
   try {
     const r = await executeMarketOrder({ userId: user.id, ...parsed.data });
     const verb = parsed.data.side === "BUY" ? "Bought" : "Sold";
-    return done(`${verb} ${r!.qty} ${parsed.data.base} at $${r!.price.toFixed(2)}. Fee $${r!.fee.toFixed(2)}.`);
+    return done(
+      `${verb} ${r!.qty} ${parsed.data.base} at ${r!.price.toFixed(2)} ${QUOTE_ASSET}. Fee ${r!.fee.toFixed(2)} ${QUOTE_ASSET}.`,
+    );
   } catch (err) {
     return fail(err);
   }
@@ -73,7 +76,7 @@ export async function limitOrder(_prev: TradeState | undefined, fd: FormData): P
   try {
     await placeLimitOrder({ userId: user.id, ...parsed.data });
     return done(
-      `Limit ${parsed.data.side.toLowerCase()} for ${parsed.data.quantity} ${parsed.data.base} at $${parsed.data.limitPrice} placed. Funds are reserved until it fills or you cancel.`,
+      `Limit ${parsed.data.side.toLowerCase()} for ${parsed.data.quantity} ${parsed.data.base} at ${parsed.data.limitPrice} ${QUOTE_ASSET} placed. Funds are reserved until it fills or you cancel.`,
     );
   } catch (err) {
     return fail(err);

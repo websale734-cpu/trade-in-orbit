@@ -23,7 +23,9 @@ export default async function AccountPage({ params }: PageProps<"/accounts/[acco
     // Scoped to the signed-in user: another user's account ID is simply not found.
     db.account.findFirst({
       where: { id: accountId, userId: user.id, archivedAt: null, type: { not: "DEMO" } },
-      include: { ledgerAccounts: { where: { balance: { not: 0 } }, include: { asset: true } } },
+      include: {
+        ledgerAccounts: { where: { balance: { not: 0 }, asset: { type: "CRYPTO" } }, include: { asset: true } },
+      },
     }),
     getMarketSnapshot(),
   ]);
