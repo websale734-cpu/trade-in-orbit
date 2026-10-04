@@ -52,10 +52,9 @@ export function DepositForm({
                 type="button"
                 role="radio"
                 aria-checked={methodId === m.id}
-                disabled={m.mode === "unavailable"}
                 onClick={() => setMethodId(m.id)}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors disabled:opacity-50",
+                  "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors",
                   methodId === m.id ? "border-accent bg-surface-strong" : "border-line hover:bg-surface",
                 )}
               >
@@ -133,6 +132,9 @@ export function DepositForm({
               <p className="text-xs text-warn">
                 Sandbox mode: no real payment is taken. Use &ldquo;Simulate confirmation&rdquo; in the history below.
               </p>
+            )}
+            {method.mode === "unavailable" && (
+              <p className="text-xs text-warn">This payment method isn&apos;t available yet.</p>
             )}
           </form>
         )}
