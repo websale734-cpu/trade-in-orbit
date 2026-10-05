@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { headers } from "next/headers";
 import { ThemeScript } from "@/components/theme/theme-script";
 import { NonceProvider } from "@/components/security/nonce";
+import { PwaSetup } from "@/components/pwa/pwa-setup";
 import { I18nProvider } from "@/i18n/client";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { localeDir } from "@/i18n/config";
@@ -18,6 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: dict.meta.title, template: "%s · Trade In Orbit" },
     description: dict.meta.description,
     applicationName: "Trade In Orbit",
+    // Installed on an iPhone home screen: full screen, dark status bar, short name under the icon.
+    appleWebApp: { capable: true, title: "Trade In Orbit", statusBarStyle: "black" },
     openGraph: {
       title: dict.meta.title,
       description: dict.meta.description,
@@ -58,6 +61,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <NonceProvider nonce={nonce}>
           <I18nProvider locale={locale} dict={dict}>
             {children}
+            <PwaSetup />
           </I18nProvider>
         </NonceProvider>
       </body>

@@ -14,6 +14,7 @@ import { PortfolioSummary, type Holding } from "@/components/dashboard/portfolio
 import { Watchlist } from "@/components/dashboard/watchlist";
 import { CurrencySelect } from "@/components/dashboard/currency-select";
 import { ReviewCard } from "@/components/dashboard/review-card";
+import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { PriceChart } from "@/components/charts/price-chart";
 import { LocalTime } from "@/components/ui/local-time";
 import { requireUser } from "@/server/auth/dal";
@@ -107,6 +108,8 @@ export default async function DashboardPage() {
           </span>
         </Link>
       )}
+
+      <InstallPrompt labels={d.install} />
 
       <PortfolioSummary
         holdings={[...totals.values()]}
